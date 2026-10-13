@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nurse_companion/core/app_scope.dart';
+import 'package:nurse_companion/core/config.dart';
+import 'package:nurse_companion/core/device_prefs.dart';
 import 'package:nurse_companion/core/reminders.dart';
 import 'package:nurse_companion/core/social_sign_in.dart';
 import 'package:nurse_companion/data/mock_repository.dart';
 import 'package:nurse_companion/data/models.dart';
+import 'package:nurse_companion/features/dashboard/widgets/active_duty_card.dart';
 import 'package:nurse_companion/main.dart';
 
 /// Phone and tablet sizes. A RenderFlex overflow throws in tests, so pumping
@@ -25,6 +28,25 @@ final visibleList = find.byType(Scrollable).hitTestable().first;
 /// Services the last [pumpApp] call used, for assertions.
 late MemoryReminderService reminders;
 late FakeSocialSignIn social;
+
+/// Pumps the dashboard over a repository the test prepared.
+Future<void> pumpWithRepo(WidgetTester tester, MockRepository repo) async {
+  tester.view.physicalSize = const Size(390, 844);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  reminders = MemoryReminderService();
+  social = FakeSocialSignIn();
+  await tester.pumpWidget(
+    NurseCompanionApp(
+      repository: repo,
+      auth: AuthController(MockAuthService(repo, signedIn: true)),
+      social: social,
+      reminders: reminders,
+      today: () => now,
+    ),
+  );
+  await settle(tester);
+}
 
 Future<MockRepository> pumpApp(
   WidgetTester tester, {
@@ -126,7 +148,10 @@ void main() {
     tester,
   ) async {
     await pumpApp(tester, signedIn: false);
-    await tester.tap(find.text('I already have an account'));
+    // Get Started goes straight to sign-in.
+    await tester.tap(find.text('Get Started'));
+    await settle(tester);
+    expect(find.text('Welcome back'), findsOneWidget);
     await settle(tester);
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Email or mobile'),
@@ -143,7 +168,7 @@ void main() {
 
   testWidgets('register validates fields like the API', (tester) async {
     await pumpApp(tester, signedIn: false);
-    await tester.tap(find.text('Get Started'));
+    await tester.tap(find.text('New here? Create an account'));
     await settle(tester);
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Email or mobile'),
@@ -172,17 +197,100 @@ void main() {
     );
   });
 
-  testWidgets('today card: checking out completes the main shift', (
+  testWidgets('today card: a duty in progress shows the live main-shift ring', (
     tester,
   ) async {
     final repo = await pumpApp(tester);
-    expect(find.text('2. Main shift ending'), findsOneWidget);
-    await revealAndTap(tester, find.widgetWithText(FilledButton, 'Check out'));
+    // Checked in at 06:52, now 12:15: still on the main shift.
+    expect(find.byType(SplitDutyRing), findsOneWidget);
+    expect(find.text('Main Shift'), findsWidgets);
+    expect(find.textContaining('left'), findsOneWidget);
+
+    await revealAndTap(tester, find.text('End duty'));
     await settle(tester);
-    expect(find.text('Signed out. Shift completed'), findsOneWidget);
-    expect(find.text('2. Main shift done'), findsOneWidget);
+    expect(find.text('Duty completed'), findsOneWidget);
     final today = (await repo.shifts(from: now, to: now)).first;
     expect(today.checkOutTime, isNotNull);
+    expect(today.status, ShiftStatus.completed);
+  });
+
+  testWidgets('24-hour duty: one check-in, automatic OT, split at check-out', (
+    tester,
+  ) async {
+    final repo = MockRepository(today: now);
+    for (final s in await repo.shifts(from: now, to: now)) {
+      await repo.deleteShift(s.id);
+    }
+    final duty = await repo.createShift(
+      ShiftDraft(date: now, type: ShiftType.twentyFour),
+    );
+    expect(duty.otHours, 18);
+    // Started at 05:00, so by 12:15 the 6-hour main shift is over.
+    await repo.updateShift(
+      duty.id,
+      ShiftUpdate(action: ShiftAction.checkIn, at: DateTime(2026, 10, 13, 5)),
+    );
+    await pumpWithRepo(tester, repo);
+
+    expect(find.text('Overtime (OT) Logged'), findsOneWidget);
+    expect(find.text('Sign out & start OT'), findsNothing);
+    expect(find.text('Stay on OT'), findsNothing);
+
+    await revealAndTap(tester, find.text('End duty'));
+    await settle(tester);
+    expect(find.text('Duty completed'), findsOneWidget);
+    expect(find.text('Main Shift'), findsWidgets);
+    expect(find.text('Logged OT'), findsOneWidget);
+
+    final done = (await repo.shifts(from: now, to: now)).single;
+    expect(done.calculatedMainHours, 6);
+    expect(done.otStartTime, DateTime(2026, 10, 13, 11));
+  });
+
+  testWidgets('a skipped duty is marked as leave in one tap', (tester) async {
+    final repo = MockRepository(today: now);
+    for (final s in await repo.shifts(from: now, to: now)) {
+      await repo.deleteShift(s.id);
+    }
+    await repo.createShift(ShiftDraft(date: now, type: ShiftType.day));
+    await pumpWithRepo(tester, repo);
+
+    await revealAndTap(tester, find.text('D · Day Duty (12h)'));
+    await settle(tester);
+    expect(
+      find.text('Skipped this duty? Mark leave in one tap'),
+      findsOneWidget,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Sick'));
+    await settle(tester);
+
+    final today = (await repo.shifts(from: now, to: now)).single;
+    expect(today.leaveType, LeaveType.sick);
+    expect(today.otHours, 0);
+  });
+
+  testWidgets('add a D duty worked entirely as a main shift', (tester) async {
+    final repo = MockRepository(today: now);
+    for (final s in await repo.shifts(from: now, to: now)) {
+      await repo.deleteShift(s.id);
+    }
+    await pumpWithRepo(tester, repo);
+
+    await tester.tap(find.text('Add'));
+    await settle(tester);
+    await tester.tap(find.text('D  Day Duty (12h)'));
+    await settle(tester, const Duration(milliseconds: 300));
+    expect(find.text('6 h + 6 h OT'), findsOneWidget);
+    await tester.tap(find.text('12 h, no OT'));
+    await settle(tester, const Duration(milliseconds: 300));
+    await revealAndTap(tester, find.widgetWithText(FilledButton, 'Add shift'));
+    await settle(tester);
+
+    final today = (await repo.shifts(from: now, to: now)).single;
+    expect(today.type, ShiftType.day);
+    expect(today.standardHours, 12);
+    expect(today.otHours, 0);
+    expect(today.hasAutoOt, isFalse);
   });
 
   testWidgets('casual leave toggle saves and blocks OT extension', (
@@ -252,13 +360,84 @@ void main() {
     expect(find.textContaining('Upcoming · Wed'), findsWidgets);
   });
 
-  testWidgets('sign out from the menu returns to welcome', (tester) async {
-    await pumpApp(tester);
-    await tester.tap(find.bySemanticsLabel('Menu'));
-    await settle(tester, const Duration(milliseconds: 600));
-    await tester.tap(find.text('Sign out'));
+  testWidgets(
+    'after signing in once, sign out goes to sign-in (not welcome) with the id remembered',
+    (tester) async {
+      await pumpApp(tester);
+      await tester.tap(find.bySemanticsLabel('Menu'));
+      await settle(tester, const Duration(milliseconds: 600));
+      await tester.tap(find.text('Sign out'));
+      await settle(tester);
+      expect(find.text('Get Started'), findsNothing);
+      expect(find.text('Welcome back'), findsOneWidget);
+      expect(find.text('Enter your password to continue.'), findsOneWidget);
+      expect(find.text('Not you?'), findsOneWidget);
+      // The start page has no back button.
+      expect(find.byTooltip('Back'), findsNothing);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Password'),
+        'Passw0rd!',
+      );
+      await tester.tap(find.text('Sign in'));
+      await settle(tester);
+      expect(find.text('Hello Nurse Dilani,'), findsOneWidget);
+    },
+  );
+
+  testWidgets('quick test login signs in with one tap', (tester) async {
+    await pumpApp(tester, signedIn: false);
+    await tester.tap(find.text('Get Started'));
     await settle(tester);
-    expect(find.text('Get Started'), findsOneWidget);
+    expect(find.text('Quick test login'), findsOneWidget);
+    expect(find.text('On a 24 h duty now'), findsOneWidget);
+    await tester.tap(find.text('Kasun'));
+    await settle(tester);
+    expect(find.text('Hello Nurse Dilani,'), findsOneWidget);
+  });
+
+  test('quick login is offered only for local API hosts', () {
+    expect(AppConfig.isLocalHost('localhost'), isTrue);
+    expect(AppConfig.isLocalHost('10.0.2.2'), isTrue);
+    expect(AppConfig.isLocalHost('192.168.0.100'), isTrue);
+    expect(AppConfig.isLocalHost('172.20.1.5'), isTrue);
+    expect(AppConfig.isLocalHost('api.slnurse.lk'), isFalse);
+    expect(AppConfig.isLocalHost('172.32.1.5'), isFalse);
+    expect(AppConfig.isLocalHost('8.8.8.8'), isFalse);
+  });
+
+  testWidgets('a returning device never shows the welcome screen', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final repo = MockRepository(today: now);
+    await tester.pumpWidget(
+      NurseCompanionApp(
+        repository: repo,
+        auth: AuthController(MockAuthService(repo, signedIn: false)),
+        social: FakeSocialSignIn(),
+        reminders: MemoryReminderService(),
+        prefs: MemoryDevicePrefs(
+          welcomeSeen: true,
+          lastLoginId: '077 123 4567',
+        ),
+        today: () => now,
+      ),
+    );
+    await settle(tester);
+    expect(find.text('Get Started'), findsNothing);
+    expect(find.text('Welcome back'), findsOneWidget);
+    expect(find.text('077 123 4567'), findsOneWidget);
+
+    // Sign-up from the start page, and back again.
+    await tester.tap(find.text('New here? Create an account'));
+    await settle(tester);
+    await revealAndTap(tester, find.text('Already registered? Sign in'));
+    await settle(tester);
+    expect(find.text('Welcome back'), findsOneWidget);
+    expect(find.byTooltip('Back'), findsNothing);
   });
 
   testWidgets('line charts finish drawing', (tester) async {
@@ -279,7 +458,7 @@ void main() {
       tester,
     ) async {
       await pumpApp(tester, signedIn: false);
-      await tester.tap(find.text('Get Started'));
+      await tester.tap(find.text('New here? Create an account'));
       await settle(tester);
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Your name'),
@@ -409,7 +588,10 @@ void main() {
       await settle(tester);
       await tester.tap(find.widgetWithText(FilledButton, 'Add shift'));
       await settle(tester);
-      await revealAndTap(tester, find.widgetWithText(FilledButton, 'Check in'));
+      await revealAndTap(
+        tester,
+        find.widgetWithText(FilledButton, 'Start duty'),
+      );
       await settle(tester);
       expect(find.text('Never miss a shift'), findsOneWidget);
       await tester.tap(find.text('Turn on reminders'));
@@ -422,10 +604,7 @@ void main() {
       tester,
     ) async {
       await pumpApp(tester, remindersSupported: false);
-      await revealAndTap(
-        tester,
-        find.widgetWithText(FilledButton, 'Check out'),
-      );
+      await revealAndTap(tester, find.text('End duty'));
       await settle(tester);
       expect(find.text('Never miss a shift'), findsNothing);
     });

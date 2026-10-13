@@ -7,6 +7,7 @@ import '../../core/widgets/async_view.dart';
 import '../../core/widgets/pastel_card.dart';
 import '../../data/models.dart';
 import '../onboarding/progressive_prompts.dart';
+import 'duty_actions.dart';
 
 /// Opens the actions sheet for [shift]. Returns true if something changed.
 Future<bool?> showShiftActions(BuildContext context, Shift shift) =>
@@ -130,15 +131,67 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
         s.checkInTime != null &&
         s.checkOutTime == null &&
         s.otStartTime == null;
+    // On a long duty OT starts by itself after the main hours: no manual switch.
     final canStartOt =
-        working && s.checkInTime != null && s.otStartTime == null;
+        working &&
+        !s.hasAutoOt &&
+        s.checkInTime != null &&
+        s.otStartTime == null;
     final canEndOt = s.otInProgress;
+    final notStarted =
+        s.checkInTime == null && s.status == ShiftStatus.scheduled;
 
     return _SheetFrame(
-      title: s.type.label,
+      title: '${s.code} · ${s.type.label}',
       subtitle:
           '${Fmt.weekday(s.date)}, ${Fmt.dayMonthYear(s.date)} · ${s.type.timeRange}',
       children: [
+        if (working && notStarted) ...[
+          const _Label('Skipped this duty? Mark leave in one tap'),
+          Row(
+            children: [
+              for (final (i, leave) in const [
+                LeaveType.casual,
+                LeaveType.sick,
+                LeaveType.noPay,
+              ].indexed) ...[
+                if (i > 0) const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonal(
+                    onPressed: _busy
+                        ? null
+                        : () => _update(
+                            ShiftUpdate(leaveType: leave, otHours: 0),
+                            '${leave.label} recorded',
+                          ),
+                    child: FittedBox(
+                      child: Text(leave.label.replaceFirst(' leave', '')),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (s.type.isLongDuty &&
+            notStarted &&
+            _mainOptions(s.type).length > 1) ...[
+          const _Label('Main shift hours'),
+          MainHoursPicker(
+            type: s.type,
+            value: s.standardHours,
+            onChanged: _busy
+                ? null
+                : (h) => _update(
+                    ShiftUpdate(standardHours: h),
+                    h >= s.type.spanHours
+                        ? 'Whole duty counted as main shift'
+                        : 'OT starts after ${Fmt.hours(h)} hrs',
+                  ),
+          ),
+          const SizedBox(height: 16),
+        ],
         if (working || canEndOt) ...[
           const _Label('Attendance'),
           Wrap(
@@ -242,6 +295,8 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
               LeaveType.sick,
               LeaveType.noPay,
               LeaveType.halfDay,
+              LeaveType.vacation,
+              LeaveType.publicHoliday,
             ])
               _StatusChip(
                 label: leave.label,
@@ -281,13 +336,13 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
     );
   }
 
-  void _act(ShiftAction action) =>
-      _update(ShiftUpdate(action: action), switch (action) {
-        ShiftAction.checkIn => 'Checked in at ${Fmt.time(DateTime.now())}',
-        ShiftAction.checkOut => 'Signed out. Shift completed',
-        ShiftAction.switchToOt => 'Main shift signed out. OT started',
-        ShiftAction.endOt => 'OT ended and hours logged',
-      });
+  /// Attendance runs from the page below the sheet, so the check-out summary and
+  /// prompts appear there once the sheet has closed.
+  Future<void> _act(ShiftAction action) async {
+    final navigator = Navigator.of(context);
+    navigator.pop(true);
+    await runDutyAction(navigator.context, widget.shift, action);
+  }
 
   Future<void> _confirmDelete() async {
     final yes = await showDialog<bool>(
@@ -315,6 +370,45 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
         'Shift deleted',
       );
     }
+  }
+}
+
+/// Main-shift hours a long duty can be logged with; the rest is OT.
+List<double> _mainOptions(ShiftType type) => switch (type) {
+  ShiftType.day => const [6, 12],
+  ShiftType.twentyFour => const [6, 12, 24],
+  _ => [type.standardHours],
+};
+
+/// "6 h + 6 h OT" / "12 h, no OT" choices for a long duty.
+class MainHoursPicker extends StatelessWidget {
+  const MainHoursPicker({
+    super.key,
+    required this.type,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final ShiftType type;
+  final double value;
+  final ValueChanged<double>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final h in _mainOptions(type))
+          _StatusChip(
+            label: h >= type.spanHours
+                ? '${Fmt.hours(h)} h, no OT'
+                : '${Fmt.hours(h)} h + ${Fmt.hours(type.spanHours - h)} h OT',
+            selected: value == h,
+            onTap: onChanged == null ? null : () => onChanged!(h),
+          ),
+      ],
+    );
   }
 }
 
@@ -385,7 +479,13 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
   ShiftType _type = ShiftType.morning;
   late bool _completed = widget.date.isBefore(dayOf(DateTime.now()));
   double _ot = 0;
+  double? _main;
   bool _busy = false;
+
+  double get _mainHours => _main ?? _type.standardHours;
+
+  /// Long duties carry their OT built in; standard shifts take extra OT by hand.
+  bool get _autoOt => _type.spanHours > _mainHours;
 
   Future<void> _save() async {
     setState(() => _busy = true);
@@ -396,7 +496,8 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
           date: widget.date,
           type: _type,
           status: _completed ? ShiftStatus.completed : ShiftStatus.scheduled,
-          otHours: _ot,
+          otHours: _autoOt ? 0 : _ot,
+          standardHours: _type.isLongDuty ? _mainHours : null,
         ),
       ),
       success: '${_type.label} added',
@@ -416,20 +517,35 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
       title: 'Add shift',
       subtitle: '${Fmt.weekday(widget.date)}, ${Fmt.dayMonthYear(widget.date)}',
       children: [
-        const _Label('Shift'),
-        SegmentedButton<ShiftType>(
-          showSelectedIcon: false,
-          segments: [
+        const _Label('Duty'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
             for (final t in ShiftType.values)
-              ButtonSegment(
-                value: t,
-                label: Text(t == ShiftType.off ? 'Off' : t.api),
+              _StatusChip(
+                label: '${t.code}  ${t.label.replaceFirst(' Shift', '')}',
+                selected: _type == t,
+                onTap: () => setState(() {
+                  _type = t;
+                  _main = null;
+                  _ot = 0;
+                }),
               ),
           ],
-          selected: {_type},
-          onSelectionChanged: (v) => setState(() => _type = v.first),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 6),
+        Text(_type.timeRange, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 12),
+        if (_mainOptions(_type).length > 1) ...[
+          const _Label('Main shift hours'),
+          MainHoursPicker(
+            type: _type,
+            value: _mainHours,
+            onChanged: (h) => setState(() => _main = h),
+          ),
+          const SizedBox(height: 12),
+        ],
         if (past)
           SwitchListTile(
             value: _completed,
@@ -438,28 +554,40 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
             subtitle: const Text('Counts towards earned pay'),
             contentPadding: EdgeInsets.zero,
           ),
-        const _Label('OT hours'),
-        Row(
-          children: [
-            IconButton.filledTonal(
-              tooltip: 'Less OT',
-              onPressed: _ot <= 0 ? null : () => setState(() => _ot -= 0.5),
-              icon: const Icon(Icons.remove_rounded),
+        if (_autoOt)
+          PastelCard(
+            color: AppColors.peach,
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              '${Fmt.hours(_type.spanHours - _mainHours)} hrs OT built in. It starts automatically '
+              'after ${Fmt.hours(_mainHours)} hrs of main shift, with a single check-in.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
-            Expanded(
-              child: Text(
-                '${Fmt.hours(_ot)} hrs',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium,
+          )
+        else ...[
+          const _Label('OT hours'),
+          Row(
+            children: [
+              IconButton.filledTonal(
+                tooltip: 'Less OT',
+                onPressed: _ot <= 0 ? null : () => setState(() => _ot -= 0.5),
+                icon: const Icon(Icons.remove_rounded),
               ),
-            ),
-            IconButton.filledTonal(
-              tooltip: 'More OT',
-              onPressed: _ot >= 16 ? null : () => setState(() => _ot += 0.5),
-              icon: const Icon(Icons.add_rounded),
-            ),
-          ],
-        ),
+              Expanded(
+                child: Text(
+                  '${Fmt.hours(_ot)} hrs',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              IconButton.filledTonal(
+                tooltip: 'More OT',
+                onPressed: _ot >= 16 ? null : () => setState(() => _ot += 0.5),
+                icon: const Icon(Icons.add_rounded),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 22),
         FilledButton(
           onPressed: _busy ? null : _save,

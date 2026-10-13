@@ -25,6 +25,23 @@ abstract interface class ReminderService {
   /// Whether the one-time "turn on reminders?" prompt has been shown on this device.
   Future<bool> wasOffered();
   Future<void> markOffered();
+
+  /// On a long duty, notifies the nurse when the main shift ends and OT begins.
+  /// Asks for notification permission if needed; independent of the reminders toggle.
+  Future<void> scheduleOtTransition(Shift shift);
+  Future<void> cancelOtTransition();
+}
+
+/// Shown when a long duty's main hours are done.
+const otTransitionTitle = 'Main Shift Completed!';
+const otTransitionBody =
+    'Switched to Overtime (OT) Mode. Keep up the great work! 🩺';
+
+/// When the OT-transition alert fires for [shift], or null if it doesn't apply.
+DateTime? otTransitionAt(Shift shift, DateTime now) {
+  if (!shift.hasAutoOt || !shift.onDuty) return null;
+  final at = shift.mainEnd;
+  return at != null && at.isAfter(now) ? at : null;
 }
 
 /// How long before a shift starts the reminder fires.
@@ -50,6 +67,14 @@ class LocalReminderService implements ReminderService {
 
   static const _enabledKey = 'reminders.enabled';
   static const _offeredKey = 'reminders.offered';
+  static const _otTransitionId = 900001;
+  static const _dutyChannel = AndroidNotificationDetails(
+    'duty_status',
+    'Duty status',
+    channelDescription: 'Tells you when a long duty switches to overtime',
+    importance: Importance.high,
+    priority: Priority.high,
+  );
   static const _channel = AndroidNotificationDetails(
     'shift_reminders',
     'Shift reminders',
@@ -125,7 +150,10 @@ class LocalReminderService implements ReminderService {
   Future<void> schedule(List<Shift> upcoming, {required DateTime now}) async {
     if (!supported || !await isEnabled()) return;
     await _init();
-    await _plugin.cancelAll();
+    // Replace shift reminders only; an OT-transition alert for a duty in progress stays.
+    for (final p in await _plugin.pendingNotificationRequests()) {
+      if (p.id != _otTransitionId) await _plugin.cancel(id: p.id);
+    }
     // iOS keeps at most 64 pending notifications; two weeks of shifts is well below that.
     for (final r in plannedReminders(upcoming, now).take(40)) {
       final start = r.shift.type.window(r.shift.date).start;
@@ -152,6 +180,45 @@ class LocalReminderService implements ReminderService {
   @override
   Future<void> markOffered() async =>
       (await SharedPreferences.getInstance()).setBool(_offeredKey, true);
+
+  @override
+  Future<void> scheduleOtTransition(Shift shift) async {
+    final at = otTransitionAt(shift, DateTime.now());
+    if (!supported || at == null) return;
+    await _init();
+    final granted = defaultTargetPlatform == TargetPlatform.android
+        ? await _plugin
+                  .resolvePlatformSpecificImplementation<
+                    AndroidFlutterLocalNotificationsPlugin
+                  >()
+                  ?.requestNotificationsPermission() ??
+              false
+        : await _plugin
+                  .resolvePlatformSpecificImplementation<
+                    IOSFlutterLocalNotificationsPlugin
+                  >()
+                  ?.requestPermissions(alert: true, sound: true) ??
+              false;
+    if (!granted) return;
+    await _plugin.zonedSchedule(
+      id: _otTransitionId,
+      title: otTransitionTitle,
+      body: otTransitionBody,
+      scheduledDate: tz.TZDateTime.from(at, tz.local),
+      notificationDetails: const NotificationDetails(
+        android: _dutyChannel,
+        iOS: DarwinNotificationDetails(),
+      ),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+    );
+  }
+
+  @override
+  Future<void> cancelOtTransition() async {
+    if (!supported) return;
+    await _init();
+    await _plugin.cancel(id: _otTransitionId);
+  }
 }
 
 /// Tests, demo mode and unsupported platforms.
@@ -189,4 +256,15 @@ class MemoryReminderService implements ReminderService {
 
   @override
   Future<void> markOffered() async => offered = true;
+
+  /// When the pending OT-transition alert fires, if one is scheduled.
+  DateTime? otTransition;
+
+  @override
+  Future<void> scheduleOtTransition(Shift shift) async {
+    if (supported) otTransition = otTransitionAt(shift, DateTime.now());
+  }
+
+  @override
+  Future<void> cancelOtTransition() async => otTransition = null;
 }

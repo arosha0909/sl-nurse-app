@@ -2,6 +2,7 @@
 <!--
   HTTPS everywhere, except plain HTTP to a locally running sl-nurse-api during
   development (10.0.2.2 is the host machine as seen from the Android emulator).
+  Debug builds use src/debug/... which permits cleartext to any LAN IP.
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />

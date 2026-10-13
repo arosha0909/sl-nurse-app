@@ -27,6 +27,16 @@ flutter run --dart-define=DEMO_MODE=true
 
 For Flutter web against a local API, add the web origin to the API's `CORS_ORIGINS`.
 
+**Quick test login:** the sign-in screen offers five one-tap test accounts in demo mode and in debug builds against a local API (localhost, emulator or LAN IP). Create them with `npm run seed:demo` in sl-nurse-api (password `DemoNurse2026`). Force with `--dart-define=QUICK_LOGIN=true|false`.
+
+| Account | Scenario |
+|---|---|
+| nimali@demo.slnurse.lk | 7 · 1 · N rota with OT, Morning today |
+| kasun@demo.slnurse.lk | On a 24-hour duty right now |
+| dilini@demo.slnurse.lk | D duties: 6 h + 6 h OT and 12 h without OT |
+| sachini@demo.slnurse.lk | Night duty tonight; casual, sick, vacation leave and an absence |
+| newnurse@demo.slnurse.lk | Brand-new account: no shifts, no salary (onboarding prompts) |
+
 On web, `?tab=0..3` opens a tab directly.
 
 ## Tests
@@ -70,7 +80,7 @@ lib/
 |---|---|
 | Sign in / up / out, session refresh | `POST /auth/login`, `/auth/register`, `/auth/logout`, `/auth/refresh` |
 | Profile and pay settings | `GET` / `PATCH /auth/me`, `GET` / `PUT /salary/config` |
-| Shifts and workflow | `GET /shifts`, `POST /shifts`, `POST /shifts/bulk`, `PUT /shifts/:id` (`CHECK_IN`, `CHECK_OUT`, `SWITCH_TO_OT`, `END_OT`), `DELETE /shifts/:id` |
+| Shifts and workflow | `GET /shifts`, `POST /shifts`, `POST /shifts/bulk`, `POST /shifts/check-in`, `POST /shifts/check-out`, `PUT /shifts/:id` (`SWITCH_TO_OT`, edits), `DELETE /shifts/:id` |
 | Roster OCR | `POST /roster/scan`: a photo, or `rawText` from on-device OCR / paste |
 | Analytics | `GET /analytics/predict-salary`, `GET /analytics/work-trends` |
 

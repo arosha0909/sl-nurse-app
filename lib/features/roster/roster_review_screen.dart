@@ -43,11 +43,17 @@ class _RosterReviewScreenState extends State<RosterReviewScreen> {
 
   void _setCode(int i, RosterCode code) {
     setState(() {
-      _rows[i] = _rows[i].copyWith(
+      final row = _rows[i];
+      _rows[i] = row.copyWith(
         type: code.type,
         leaveType: code.leave,
-        status: code.isLeave ? ShiftStatus.leave : ShiftStatus.scheduled,
-        otHours: code.isLeave ? 0 : _rows[i].otHours,
+        status: code.draft(row.date).status,
+        // A long duty carries its built-in OT; extra OT on a standard shift is kept.
+        otHours: code.isRest
+            ? 0
+            : code.type.isLongDuty
+            ? code.type.spanHours - code.type.standardHours
+            : (row.type.isLongDuty ? 0 : row.otHours),
       );
     });
   }
@@ -293,7 +299,7 @@ class _RowTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final code = RosterCode.of(row.type, row.leaveType);
+    final code = RosterCode.of(row.type, row.leaveType, row.status);
     return PastelCard(
       elevated: true,
       color: row.lowConfidence ? AppColors.peach : AppColors.surface,
@@ -333,7 +339,7 @@ class _RowTile extends StatelessWidget {
               ],
             ),
           ),
-          if (!code.isLeave && code != RosterCode.off || row.otHours > 0)
+          if (!code.isRest || row.otHours > 0)
             ActionChip(
               onPressed: onOt,
               label: Text(

@@ -7,6 +7,7 @@ import '../../core/widgets/common.dart';
 import '../../data/models.dart';
 import '../roster/manual_roster_screen.dart';
 import '../roster/roster_scan_screen.dart';
+import '../shifts/duty_actions.dart';
 import '../shifts/shift_sheets.dart';
 import '../onboarding/progressive_prompts.dart';
 import 'dashboard_vm.dart';
@@ -48,29 +49,6 @@ class DashboardScreen extends StatelessWidget {
       upcoming: results[3] as List<Shift>,
       now: now,
     );
-  }
-
-  Future<void> _runAction(
-    BuildContext context,
-    Shift shift,
-    ShiftAction action,
-  ) async {
-    final scope = AppScope.of(context);
-    final ok = await context.runWithFeedback(
-      () => scope.repository.updateShift(shift.id, ShiftUpdate(action: action)),
-      success: switch (action) {
-        ShiftAction.checkIn => 'Checked in. Have a good shift!',
-        ShiftAction.checkOut => 'Signed out. Shift completed',
-        ShiftAction.switchToOt => 'Main shift signed out. OT started',
-        ShiftAction.endOt => 'OT ended and hours logged',
-      },
-    );
-    if (!ok) return;
-    scope.sync.changed();
-    // First check-in on this device: offer shift reminders with a single tap.
-    if (action == ShiftAction.checkIn && context.mounted) {
-      await ProgressivePrompts.offerReminders(context);
-    }
   }
 
   @override
@@ -124,7 +102,8 @@ class DashboardScreen extends StatelessWidget {
                   TodayShiftCard(
                     shift: data.today,
                     now: now,
-                    onAction: (s, a) => _runAction(context, s, a),
+                    clock: scope.today,
+                    onAction: (s, a) => runDutyAction(context, s, a),
                     onOpen: (s) => showShiftActions(context, s),
                     onAdd: () => showAddShift(context, dayOf(now)),
                   ),

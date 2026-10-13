@@ -17,6 +17,30 @@ abstract final class AppConfig {
     'GOOGLE_IOS_CLIENT_ID',
   );
 
+  /// `--dart-define=QUICK_LOGIN=true|false` forces the quick test logins on or off.
+  static const _quickLoginOverride = String.fromEnvironment('QUICK_LOGIN');
+
+  /// One-tap test accounts on the sign-in screen. On in demo mode and in debug/profile
+  /// builds that talk to a local API (localhost, emulator or LAN); never in a release
+  /// build against a real server unless forced.
+  static bool get quickLogin {
+    if (_quickLoginOverride.isNotEmpty) return _quickLoginOverride == 'true';
+    if (demoMode) return true;
+    if (kReleaseMode) return false;
+    return isLocalHost(Uri.tryParse(apiBaseUrl)?.host ?? '');
+  }
+
+  static bool isLocalHost(String host) {
+    if (host == 'localhost' || host.endsWith('.local')) return true;
+    final p = host.split('.').map(int.tryParse).toList();
+    if (p.length != 4 || p.contains(null)) return false;
+    final (a, b) = (p[0]!, p[1]!);
+    return a == 127 ||
+        a == 10 ||
+        (a == 192 && b == 168) ||
+        (a == 172 && b >= 16 && b <= 31);
+  }
+
   /// Defaults point at a locally running sl-nurse-api. The Android emulator reaches
   /// the host machine through 10.0.2.2, not localhost.
   static String get apiBaseUrl {

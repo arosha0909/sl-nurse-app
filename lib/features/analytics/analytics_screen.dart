@@ -542,6 +542,7 @@ class _ShiftMixCard extends StatelessWidget {
       (label: 'Morning', color: AppColors.peachDeep),
       (label: 'Evening', color: AppColors.lavenderDeep),
       (label: 'Night', color: AppColors.ink),
+      (label: 'LongDuty', color: AppColors.skyDeep),
       (label: 'OffDayOT', color: AppColors.mintDeep),
     ];
     return PastelCard(
@@ -592,7 +593,11 @@ class _ShiftMixCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      '${m.label == 'OffDayOT' ? 'Off-day OT' : m.label} ${Fmt.hours(t.percentages[m.label] ?? 0)}%',
+                      '${switch (m.label) {
+                        'OffDayOT' => 'Off-day OT',
+                        'LongDuty' => 'D / 24',
+                        _ => m.label,
+                      }} ${Fmt.hours(t.percentages[m.label] ?? 0)}%',
                       style: text.bodySmall?.copyWith(
                         color: AppColors.textPrimary,
                       ),

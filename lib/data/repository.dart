@@ -14,6 +14,12 @@ abstract interface class NurseRepository {
   });
   Future<Shift> createShift(ShiftDraft draft);
   Future<Shift> updateShift(String id, ShiftUpdate update);
+
+  /// Starts a duty with one check-in (`POST /shifts/check-in`).
+  Future<Shift> startDuty(String shiftId);
+
+  /// Ends a duty and splits it into main-shift and OT hours (`POST /shifts/check-out`).
+  Future<({Shift shift, DutySummary summary})> endDuty(String shiftId);
   Future<void> deleteShift(String id);
   Future<BulkResult> bulkShifts(
     List<ShiftDraft> drafts, {

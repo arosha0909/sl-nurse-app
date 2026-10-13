@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../data/models.dart';
 import '../data/repository.dart';
+import 'device_prefs.dart';
 import 'reminders.dart';
 import 'social_sign_in.dart';
 
@@ -119,6 +120,7 @@ class AppScope extends InheritedWidget {
     required this.today,
     required this.social,
     required this.reminders,
+    required this.prefs,
     required super.child,
   });
 
@@ -134,6 +136,9 @@ class AppScope extends InheritedWidget {
 
   /// Local shift reminders (offered after the first check-in).
   final ReminderService reminders;
+
+  /// Per-device memory: welcome seen, last sign-in id.
+  final DevicePrefs prefs;
 
   static AppScope of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<AppScope>();

@@ -62,6 +62,24 @@ class ApiRepository implements NurseRepository {
   }
 
   @override
+  Future<Shift> startDuty(String shiftId) async {
+    final data =
+        await _api.post('/shifts/check-in', body: {'shiftId': shiftId}) as Json;
+    return Shift.fromJson(data['shift'] as Json);
+  }
+
+  @override
+  Future<({Shift shift, DutySummary summary})> endDuty(String shiftId) async {
+    final data =
+        await _api.post('/shifts/check-out', body: {'shiftId': shiftId})
+            as Json;
+    return (
+      shift: Shift.fromJson(data['shift'] as Json),
+      summary: DutySummary.fromJson(data['summary'] as Json),
+    );
+  }
+
+  @override
   Future<void> deleteShift(String id) => _api.delete('/shifts/$id');
 
   @override

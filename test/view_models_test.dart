@@ -3,9 +3,101 @@ import 'package:nurse_companion/core/reminders.dart';
 import 'package:nurse_companion/data/mock_repository.dart';
 import 'package:nurse_companion/data/models.dart';
 import 'package:nurse_companion/features/dashboard/dashboard_vm.dart';
+import 'package:nurse_companion/features/dashboard/widgets/active_duty_card.dart';
 import 'package:nurse_companion/features/duty/duty_vm.dart';
 
 void main() {
+  group('long duties', () {
+    final day = DateTime(2026, 10, 13);
+    Shift duty(ShiftType type, {double? main, DateTime? checkIn}) => Shift(
+      id: 'd1',
+      date: day,
+      type: type,
+      standardHours: main,
+      checkInTime: checkIn,
+    );
+
+    test('reads the new API fields and roster codes', () {
+      final s = Shift.fromJson({
+        'id': 'x',
+        'date': '2026-10-13',
+        'shiftType': 'TwentyFour',
+        'status': 'Scheduled',
+        'leaveType': 'None',
+        'isOT': true,
+        'otHours': 18,
+        'standardHours': 6,
+        'nightAllowanceApplicable': true,
+      });
+      expect(s.type, ShiftType.twentyFour);
+      expect(s.code, '24');
+      expect(s.hasAutoOt, isTrue);
+      expect(s.nightAllowanceApplicable, isTrue);
+      expect(
+        Shift.fromJson({
+          'id': 'y',
+          'date': '2026-10-13',
+          'shiftType': 'Morning',
+          'status': 'Leave',
+          'leaveType': 'Vacation',
+        }).code,
+        'VL',
+      );
+    });
+
+    test('a D duty worked as a 12-hour main shift has no automatic OT', () {
+      expect(duty(ShiftType.day).hasAutoOt, isTrue);
+      expect(duty(ShiftType.day, main: 12).hasAutoOt, isFalse);
+      expect(duty(ShiftType.morning).hasAutoOt, isFalse);
+    });
+
+    test('progress moves from main shift to OT after the main hours', () {
+      final s = duty(ShiftType.twentyFour, checkIn: DateTime(2026, 10, 13, 7));
+      final early = DutyProgress.of(s, DateTime(2026, 10, 13, 10));
+      expect(early.onOt, isFalse);
+      expect(early.mainLeft, const Duration(hours: 3));
+      expect(early.planned, const Duration(hours: 24));
+
+      final later = DutyProgress.of(s, DateTime(2026, 10, 14, 1, 30));
+      expect(later.onOt, isTrue);
+      expect(later.main, const Duration(hours: 6));
+      expect(later.ot, const Duration(hours: 12, minutes: 30));
+    });
+
+    test('a standard shift stays on the main shift until switched to OT', () {
+      final s = duty(ShiftType.morning, checkIn: DateTime(2026, 10, 13, 7));
+      final p = DutyProgress.of(s, DateTime(2026, 10, 13, 13, 20));
+      expect(p.onOt, isFalse);
+      expect(p.mainDone, isTrue);
+      expect(p.ot, Duration.zero);
+    });
+
+    test('the OT alert fires when the main hours are done', () {
+      final s = duty(
+        ShiftType.twentyFour,
+        checkIn: DateTime(2026, 10, 13, 7, 5),
+      );
+      expect(
+        otTransitionAt(s, DateTime(2026, 10, 13, 8)),
+        DateTime(2026, 10, 13, 13, 5),
+      );
+      expect(otTransitionAt(s, DateTime(2026, 10, 13, 14)), isNull);
+      expect(
+        otTransitionAt(
+          duty(ShiftType.morning, checkIn: DateTime(2026, 10, 13, 7)),
+          DateTime(2026, 10, 13, 8),
+        ),
+        isNull,
+      );
+    });
+
+    test('the stepper explains automatic OT before check-in', () {
+      final steps = stepsFor(duty(ShiftType.day), DateTime(2026, 10, 13, 6));
+      expect(steps.last.title, 'OT starts automatically');
+      expect(steps.last.detail, contains('01:00 PM'));
+    });
+  });
+
   group('model parsing (real API shapes)', () {
     test(
       'Shift.fromJson reads dates as local calendar days and instants as local time',

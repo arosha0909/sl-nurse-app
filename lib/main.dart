@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'core/app_scope.dart';
 import 'core/config.dart';
+import 'core/device_prefs.dart';
 import 'core/network/api_client.dart';
 import 'core/network/token_store.dart';
 import 'core/reminders.dart';
@@ -16,8 +17,12 @@ import 'data/repository.dart';
 import 'features/auth/auth_screens.dart';
 import 'features/shell/app_shell.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Read before the first frame, so a returning nurse never sees the welcome screen flash.
+  final prefs = AppConfig.demoMode
+      ? MemoryDevicePrefs()
+      : await SharedDevicePrefs.load();
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -26,6 +31,8 @@ void main() {
       systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
+  // Full screen: system bars stay hidden and reappear briefly on an edge swipe.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
   // On web, `?tab=1` opens a tab directly (handy for previews and screenshots).
   final tab = kIsWeb
@@ -57,26 +64,29 @@ void main() {
       auth: auth,
       social: social,
       reminders: reminders,
+      prefs: prefs,
       initialTab: (tab ?? 0).clamp(0, 3),
     ),
   );
 }
 
 class NurseCompanionApp extends StatefulWidget {
-  const NurseCompanionApp({
+  NurseCompanionApp({
     super.key,
     required this.repository,
     required this.auth,
     required this.social,
     required this.reminders,
+    DevicePrefs? prefs,
     this.initialTab = 0,
     this.today,
-  });
+  }) : prefs = prefs ?? MemoryDevicePrefs();
 
   final NurseRepository repository;
   final AuthController auth;
   final SocialSignIn social;
   final ReminderService reminders;
+  final DevicePrefs prefs;
   final int initialTab;
 
   /// Fixed clock for tests and screenshots; defaults to the device clock.
@@ -111,6 +121,7 @@ class _NurseCompanionAppState extends State<NurseCompanionApp> {
       today: widget.today ?? DateTime.now,
       social: widget.social,
       reminders: widget.reminders,
+      prefs: widget.prefs,
       child: MaterialApp(
         title: 'Nurse Companion',
         debugShowCheckedModeBanner: false,
@@ -118,6 +129,7 @@ class _NurseCompanionAppState extends State<NurseCompanionApp> {
         theme: AppTheme.light(),
         home: AuthGate(
           auth: widget.auth,
+          prefs: widget.prefs,
           navigator: _navigator,
           initialTab: widget.initialTab,
         ),
@@ -126,16 +138,19 @@ class _NurseCompanionAppState extends State<NurseCompanionApp> {
   }
 }
 
-/// Shows the welcome flow or the app depending on the session.
+/// Shows the app when signed in. Signed out, a first-time visitor gets the welcome
+/// screen; anyone who has signed in on this device before goes straight to sign-in.
 class AuthGate extends StatefulWidget {
   const AuthGate({
     super.key,
     required this.auth,
+    required this.prefs,
     required this.navigator,
     required this.initialTab,
   });
 
   final AuthController auth;
+  final DevicePrefs prefs;
   final GlobalKey<NavigatorState> navigator;
   final int initialTab;
 
@@ -165,6 +180,11 @@ class _AuthGateState extends State<AuthGate> {
       widget.navigator.currentState?.popUntil((r) => r.isFirst);
     }
     _last = status;
+    if (status == SessionStatus.signedIn) {
+      // From now on this device skips the welcome screen and pre-fills sign-in.
+      widget.prefs.markWelcomeSeen();
+      widget.prefs.rememberLoginId(widget.auth.user?.contact ?? '');
+    }
     setState(() {});
   }
 
@@ -172,9 +192,10 @@ class _AuthGateState extends State<AuthGate> {
   Widget build(BuildContext context) {
     final child = switch (widget.auth.status) {
       SessionStatus.unknown => const _Splash(),
-      SessionStatus.signedOut => WelcomeScreen(
-        notice: widget.auth.signedOutReason,
-      ),
+      SessionStatus.signedOut =>
+        widget.prefs.welcomeSeen
+            ? LoginScreen(notice: widget.auth.signedOutReason)
+            : WelcomeScreen(notice: widget.auth.signedOutReason),
       SessionStatus.signedIn => AppShell(initialTab: widget.initialTab),
     };
     return AnimatedSwitcher(
@@ -188,12 +209,24 @@ class _Splash extends StatelessWidget {
   const _Splash();
 
   @override
-  Widget build(BuildContext context) => const Scaffold(
+  Widget build(BuildContext context) => Scaffold(
     body: Center(
-      child: Icon(
-        Icons.health_and_safety_rounded,
-        size: 64,
-        color: AppColors.lavenderDeep,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.health_and_safety_rounded,
+            size: 64,
+            color: AppColors.lavenderDeep,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Nurse Companion',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: AppColors.lavenderDeep),
+          ),
+        ],
       ),
     ),
   );

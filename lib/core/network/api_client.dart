@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
@@ -176,10 +177,13 @@ class ApiClient {
     try {
       return await attempt();
     } on TimeoutException {
+      debugPrint('API timeout: $baseUrl');
       throw const ApiException(
         'The server took too long to respond. Please try again.',
       );
-    } on http.ClientException {
+    } on http.ClientException catch (e) {
+      // The friendly message hides the cause; keep it in debug logs.
+      debugPrint('API unreachable: $baseUrl: ${e.message}');
       throw const ApiException(
         'Can\'t reach the server. Check your connection and try again.',
       );

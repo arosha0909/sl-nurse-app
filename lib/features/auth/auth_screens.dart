@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_scope.dart';
+import '../../core/config.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -9,6 +10,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/pastel_card.dart';
 import '../../data/models.dart';
 import '../roster/roster_widgets.dart';
+import 'quick_login.dart';
 
 /* ------------------------------------------------------------------ *
  * Welcome (reference: "Your passport to fitness success")
@@ -26,75 +28,101 @@ class WelcomeScreen extends StatelessWidget {
       body: BackgroundWaves(
         child: SafeArea(
           child: ResponsiveContent(
-            child: LayoutBuilder(
-              builder: (context, c) => SingleChildScrollView(
-                padding: const EdgeInsets.all(AppSpacing.screenPadding),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: c.maxHeight - AppSpacing.screenPadding * 2,
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.health_and_safety_rounded,
-                            color: AppColors.lavenderDeep,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Nurse Companion',
-                            style: text.titleMedium?.copyWith(
+            // The actions are pinned to the bottom, so Get Started is always one tap
+            // away whatever the screen size; the story scrolls above them.
+            child: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenPadding,
+                      AppSpacing.screenPadding,
+                      AppSpacing.screenPadding,
+                      8,
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.health_and_safety_rounded,
                               color: AppColors.lavenderDeep,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Nurse Companion',
+                              style: text.titleMedium?.copyWith(
+                                color: AppColors.lavenderDeep,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        const _Illustration(),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Your companion\nfor every shift',
+                          textAlign: TextAlign.center,
+                          style: text.headlineMedium?.copyWith(
+                            fontSize: 30,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Track duties and OT, scan your roster, and see what this month\'s salary will be. All in one place.',
+                          textAlign: TextAlign.center,
+                          style: text.bodyMedium,
+                        ),
+                        const SizedBox(height: 20),
+                        const _Highlights(),
+                        if (notice != null) ...[
+                          const SizedBox(height: 16),
+                          PastelCard(
+                            color: AppColors.peach,
+                            padding: const EdgeInsets.all(12),
+                            child: Text(
+                              notice!,
+                              textAlign: TextAlign.center,
+                              style: text.bodyMedium?.copyWith(
+                                color: AppColors.textPrimary,
+                              ),
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 18),
-                      const _Illustration(),
-                      const SizedBox(height: 28),
-                      Text(
-                        'Your companion\nfor every shift',
-                        textAlign: TextAlign.center,
-                        style: text.headlineMedium?.copyWith(
-                          fontSize: 30,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Track duties and OT, scan your roster, and see what this month\'s salary will be. All in one place.',
-                        textAlign: TextAlign.center,
-                        style: text.bodyMedium,
-                      ),
-                      if (notice != null) ...[
-                        const SizedBox(height: 16),
-                        PastelCard(
-                          color: AppColors.peach,
-                          padding: const EdgeInsets.all(12),
-                          child: Text(
-                            notice!,
-                            textAlign: TextAlign.center,
-                            style: text.bodyMedium?.copyWith(
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
                       ],
-                      const SizedBox(height: 28),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenPadding,
+                    8,
+                    AppSpacing.screenPadding,
+                    8,
+                  ),
+                  child: Column(
+                    children: [
                       SizedBox(
                         width: double.infinity,
                         height: 56,
                         child: FilledButton(
                           onPressed: () => Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => const RegisterScreen(),
+                              builder: (_) => LoginScreen(),
                             ),
                           ),
-                          child: const Text(
-                            'Get Started',
-                            style: TextStyle(fontSize: 15),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Get Started',
+                                style: TextStyle(fontSize: 15),
+                              ),
+                              SizedBox(width: 8),
+                              Icon(Icons.arrow_forward_rounded, size: 20),
+                            ],
                           ),
                         ),
                       ),
@@ -102,19 +130,78 @@ class WelcomeScreen extends StatelessWidget {
                       TextButton(
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => const LoginScreen(),
+                            builder: (_) => const RegisterScreen(),
                           ),
                         ),
-                        child: const Text('I already have an account'),
+                        child: const Text('New here? Create an account'),
                       ),
                     ],
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Three things the app does for a busy nurse, as compact rows.
+class _Highlights extends StatelessWidget {
+  const _Highlights();
+
+  static const _items = [
+    (
+      icon: Icons.touch_app_rounded,
+      color: AppColors.lavender,
+      text:
+          'One tap to start a duty. OT switches on by itself on D and 24 duties',
+    ),
+    (
+      icon: Icons.document_scanner_rounded,
+      color: AppColors.sky,
+      text: 'Snap your ward roster and the whole month is filled in',
+    ),
+    (
+      icon: Icons.payments_rounded,
+      color: AppColors.mint,
+      text: 'Know your salary, OT and night allowance before payday',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Column(
+      children: [
+        for (final item in _items)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: item.color,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(item.icon, size: 19, color: AppColors.ink),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    item.text,
+                    style: text.bodyMedium?.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
@@ -288,7 +375,25 @@ class _AuthScaffold extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.all(AppSpacing.screenPadding),
               children: [
-                const PageHeader(title: ''),
+                // Pushed from the welcome screen: back. Shown as the start page: brand.
+                if (!(ModalRoute.of(context)?.isFirst ?? true))
+                  const PageHeader(title: '')
+                else
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.health_and_safety_rounded,
+                        color: AppColors.lavenderDeep,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Nurse Companion',
+                        style: text.titleMedium?.copyWith(
+                          color: AppColors.lavenderDeep,
+                        ),
+                      ),
+                    ],
+                  ),
                 const SizedBox(height: 12),
                 Text(title, style: text.headlineMedium),
                 const SizedBox(height: 6),
@@ -511,7 +616,14 @@ class _OrDivider extends StatelessWidget {
  * Login
  * ------------------------------------------------------------------ */
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  LoginScreen({super.key, this.notice, bool? showQuickLogin})
+    : showQuickLogin = showQuickLogin ?? AppConfig.quickLogin;
+
+  /// e.g. "Your session has expired".
+  final String? notice;
+
+  /// One-tap seeded test accounts (local and demo builds only).
+  final bool showQuickLogin;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -521,14 +633,47 @@ class _LoginScreenState extends State<LoginScreen> {
   final _form = GlobalKey<FormState>();
   final _id = TextEditingController();
   final _password = TextEditingController();
+  final _passwordFocus = FocusNode();
   bool _obscure = true;
   bool _busy = false;
   String? _error;
+
+  /// Returning on this device: the id is filled in and only the password is needed.
+  bool _remembered = false;
+  bool _initialised = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialised) return;
+    _initialised = true;
+    final last = AppScope.of(context).prefs.lastLoginId;
+    if (last.isNotEmpty) {
+      _id.text = last;
+      _remembered = true;
+    }
+  }
+
+  /// Signs in as a seeded test account with one tap.
+  void _quickLogin(QuickLoginAccount account) {
+    _id.text = account.email;
+    _password.text = QuickLogin.password;
+    _submit();
+  }
+
+  void _forgetId() {
+    setState(() {
+      _remembered = false;
+      _id.clear();
+      _password.clear();
+    });
+  }
 
   @override
   void dispose() {
     _id.dispose();
     _password.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -551,11 +696,31 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
     return _AuthScaffold(
       title: 'Welcome back',
-      subtitle: 'Sign in to see your shifts and salary.',
+      subtitle: _remembered
+          ? 'Enter your password to continue.'
+          : 'Sign in to see your shifts and salary.',
       child: Column(
         children: [
+          if (widget.showQuickLogin)
+            QuickLoginStrip(onPick: _quickLogin, busy: _busy),
+          if (widget.notice != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: PastelCard(
+                color: AppColors.peach,
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  widget.notice!,
+                  textAlign: TextAlign.center,
+                  style: text.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ),
           if (_error != null) _ErrorBanner(_error!),
           _SocialButtons(
             busy: _busy,
@@ -569,21 +734,32 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   TextFormField(
                     controller: _id,
+                    // A returning nurse goes straight to the password.
+                    autofocus: !_remembered,
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [
                       AutofillHints.email,
                       AutofillHints.telephoneNumber,
                     ],
                     textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
+                    onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
+                    decoration: InputDecoration(
                       labelText: 'Email or mobile',
-                      prefixIcon: Icon(Icons.person_outline_rounded),
+                      prefixIcon: const Icon(Icons.person_outline_rounded),
+                      suffixIcon: _remembered
+                          ? TextButton(
+                              onPressed: _forgetId,
+                              child: const Text('Not you?'),
+                            )
+                          : null,
                     ),
                     validator: Validators.emailOrPhone,
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
                     controller: _password,
+                    focusNode: _passwordFocus,
+                    autofocus: _remembered,
                     obscureText: _obscure,
                     autofillHints: const [AutofillHints.password],
                     textInputAction: TextInputAction.done,
@@ -616,9 +792,16 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 8),
           TextButton(
-            onPressed: () => Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const RegisterScreen()),
-            ),
+            onPressed: () {
+              final route = MaterialPageRoute<void>(
+                builder: (_) => const RegisterScreen(),
+              );
+              // As the start page, sign-in stays underneath; pushed, it is replaced.
+              final nav = Navigator.of(context);
+              (ModalRoute.of(context)?.isFirst ?? true)
+                  ? nav.push(route)
+                  : nav.pushReplacement(route);
+            },
             child: const Text('New here? Create an account'),
           ),
         ],
@@ -785,9 +968,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
           const SizedBox(height: 4),
           Center(
             child: TextButton(
-              onPressed: () => Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-              ),
+              onPressed: () {
+                final nav = Navigator.of(context);
+                // Sign-in is already the start page underneath: just go back to it.
+                if (AppScope.of(context).prefs.welcomeSeen) {
+                  nav.pop();
+                } else {
+                  nav.pushReplacement(
+                    MaterialPageRoute(builder: (_) => LoginScreen()),
+                  );
+                }
+              },
               child: const Text('Already registered? Sign in'),
             ),
           ),

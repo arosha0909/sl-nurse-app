@@ -7,6 +7,7 @@ import '../../../core/widgets/common.dart';
 import '../../../core/widgets/pastel_card.dart';
 import '../../../data/models.dart';
 import '../dashboard_vm.dart';
+import 'active_duty_card.dart';
 
 /// "Today's Activity"-style card: a shift tile on the left and the
 /// check-in → main shift → OT workflow on the right, with the next action button.
@@ -18,10 +19,14 @@ class TodayShiftCard extends StatelessWidget {
     required this.onAction,
     required this.onOpen,
     required this.onAdd,
+    this.clock,
   });
 
   final Shift? shift;
   final DateTime now;
+
+  /// Drives the live duty timer; defaults to a fixed [now].
+  final DateTime Function()? clock;
   final void Function(Shift shift, ShiftAction action) onAction;
   final void Function(Shift shift) onOpen;
   final VoidCallback onAdd;
@@ -32,6 +37,14 @@ class TodayShiftCard extends StatelessWidget {
     if (s == null) return _EmptyToday(onAdd: onAdd);
     if (s.isLeave || s.type == ShiftType.off && s.otHours == 0) {
       return _RestDay(shift: s, onOpen: () => onOpen(s));
+    }
+    if (s.onDuty) {
+      return ActiveDutyCard(
+        shift: s,
+        clock: clock ?? () => now,
+        onAction: onAction,
+        onOpen: onOpen,
+      );
     }
 
     return PastelCard(
@@ -164,6 +177,8 @@ class _ShiftTile extends StatelessWidget {
     ShiftType.morning => Icons.wb_sunny_rounded,
     ShiftType.evening => Icons.wb_twilight_rounded,
     ShiftType.night => Icons.nightlight_round,
+    ShiftType.day || ShiftType.short => Icons.light_mode_rounded,
+    ShiftType.twentyFour => Icons.schedule_rounded,
     ShiftType.off => Icons.weekend_rounded,
   };
 
@@ -206,7 +221,7 @@ class _ShiftTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  shift.type.label,
+                  '${shift.code} · ${shift.type.label}',
                   style: text.titleSmall,
                   textAlign: align,
                 ),

@@ -7,10 +7,15 @@ library;
 /* ------------------------------------------------------------------ *
  * Enums with API string mapping
  * ------------------------------------------------------------------ */
+/// Duty types. Day (D), Short (8D) and TwentyFour (24) are long duties logged as one entry
+/// with a single check-in; on D and 24 the hours after the main shift are OT.
 enum ShiftType {
   morning('Morning'),
   evening('Evening'),
   night('Night'),
+  day('Day'),
+  short('Short'),
+  twentyFour('TwentyFour'),
   off('Off');
 
   const ShiftType(this.api);
@@ -23,43 +28,71 @@ enum ShiftType {
     ShiftType.morning => 'Morning Shift',
     ShiftType.evening => 'Evening Shift',
     ShiftType.night => 'Night Shift',
+    ShiftType.day => 'Day Duty (12h)',
+    ShiftType.short => 'Short Duty (8h)',
+    ShiftType.twentyFour => '24-Hour Duty',
     ShiftType.off => 'Day Off',
   };
 
-  String get short => switch (this) {
-    ShiftType.morning => 'M',
-    ShiftType.evening => 'E',
+  /// Sri Lankan ward roster code.
+  String get code => switch (this) {
+    ShiftType.morning => '7',
+    ShiftType.evening => '1',
     ShiftType.night => 'N',
-    ShiftType.off => 'Off',
+    ShiftType.day => 'D',
+    ShiftType.short => '8D',
+    ShiftType.twentyFour => '24',
+    ShiftType.off => 'DO',
   };
 
   /// Standard Sri Lankan government hospital duty windows (local time).
   int get startHour => switch (this) {
-    ShiftType.morning => 7,
+    ShiftType.morning || ShiftType.day || ShiftType.short => 7,
+    ShiftType.twentyFour => 7,
     ShiftType.evening => 13,
     ShiftType.night => 19,
     ShiftType.off => 0,
   };
 
-  double get standardHours => switch (this) {
+  /// Length of the whole duty on the roster.
+  double get spanHours => switch (this) {
     ShiftType.morning || ShiftType.evening => 6,
-    ShiftType.night => 12,
+    ShiftType.night || ShiftType.day => 12,
+    ShiftType.short => 8,
+    ShiftType.twentyFour => 24,
     ShiftType.off => 0,
   };
+
+  /// Default main-shift hours; the rest of a long duty's span is OT.
+  double get standardHours => switch (this) {
+    ShiftType.morning || ShiftType.evening => 6,
+    ShiftType.day || ShiftType.twentyFour => 6,
+    ShiftType.night => 12,
+    ShiftType.short => 8,
+    ShiftType.off => 0,
+  };
+
+  bool get isLongDuty =>
+      this == ShiftType.day ||
+      this == ShiftType.short ||
+      this == ShiftType.twentyFour;
 
   String get timeRange => switch (this) {
     ShiftType.morning => '07:00 AM – 01:00 PM',
     ShiftType.evening => '01:00 PM – 07:00 PM',
     ShiftType.night => '07:00 PM – 07:00 AM',
+    ShiftType.day => '07:00 AM – 07:00 PM',
+    ShiftType.short => '07:00 AM – 03:00 PM',
+    ShiftType.twentyFour => '07:00 AM – 07:00 AM (+1)',
     ShiftType.off => 'Rest day',
   };
 
-  /// Scheduled start/end instants on [day] (end may be the next morning).
+  /// Rostered start/end of the whole duty on [day] (end may be the next morning).
   ({DateTime start, DateTime end}) window(DateTime day) {
     final start = DateTime(day.year, day.month, day.day, startHour);
     return (
       start: start,
-      end: start.add(Duration(minutes: (standardHours * 60).round())),
+      end: start.add(Duration(minutes: (spanHours * 60).round())),
     );
   }
 }
@@ -82,7 +115,9 @@ enum LeaveType {
   casual('Casual'),
   sick('Sick'),
   noPay('NoPay'),
-  halfDay('HalfDay');
+  halfDay('HalfDay'),
+  vacation('Vacation'),
+  publicHoliday('PublicHoliday');
 
   const LeaveType(this.api);
   final String api;
@@ -96,6 +131,19 @@ enum LeaveType {
     LeaveType.sick => 'Sick leave',
     LeaveType.noPay => 'No-pay leave',
     LeaveType.halfDay => 'Half day',
+    LeaveType.vacation => 'Vacation leave',
+    LeaveType.publicHoliday => 'Public holiday',
+  };
+
+  /// Sri Lankan ward roster code.
+  String get code => switch (this) {
+    LeaveType.none => '',
+    LeaveType.casual => 'CL',
+    LeaveType.sick => 'SL',
+    LeaveType.noPay => 'NP',
+    LeaveType.halfDay => 'HD',
+    LeaveType.vacation => 'VL',
+    LeaveType.publicHoliday => 'PH',
   };
 }
 
@@ -110,8 +158,8 @@ enum ShiftAction {
   final String api;
 
   String get label => switch (this) {
-    ShiftAction.checkIn => 'Check in',
-    ShiftAction.checkOut => 'Check out',
+    ShiftAction.checkIn => 'Start duty',
+    ShiftAction.checkOut => 'End duty',
     ShiftAction.switchToOt => 'Sign out & start OT',
     ShiftAction.endOt => 'End OT',
   };
@@ -304,7 +352,10 @@ class Shift {
     this.otStartTime,
     this.otEndTime,
     this.notes,
-  });
+    this._standardHours,
+    this.calculatedMainHours,
+    bool? nightAllowanceApplicable,
+  }) : _nightAllowance = nightAllowanceApplicable;
 
   factory Shift.fromJson(Json j) => Shift(
     id: j['id'] as String,
@@ -314,6 +365,9 @@ class Shift {
     leaveType: LeaveType.parse(j['leaveType'] as String? ?? 'None'),
     isOT: j['isOT'] as bool? ?? false,
     otHours: _num(j['otHours']),
+    standardHours: (j['standardHours'] as num?)?.toDouble(),
+    calculatedMainHours: (j['calculatedMainHours'] as num?)?.toDouble(),
+    nightAllowanceApplicable: j['nightAllowanceApplicable'] as bool?,
     checkInTime: _instant(j['checkInTime']),
     checkOutTime: _instant(j['checkOutTime']),
     otStartTime: _instant(j['otStartTime']),
@@ -327,28 +381,62 @@ class Shift {
   final ShiftStatus status;
   final LeaveType leaveType;
   final bool isOT;
+
+  /// Planned OT while scheduled; actual OT once the duty is checked out.
   final double otHours;
   final DateTime? checkInTime;
+
+  /// End of the main shift. On a long duty with OT, the duty ends at [otEndTime].
   final DateTime? checkOutTime;
   final DateTime? otStartTime;
   final DateTime? otEndTime;
   final String? notes;
+
+  /// Main-shift hours actually worked (set by the API at check-out).
+  final double? calculatedMainHours;
+  final double? _standardHours;
+  final bool? _nightAllowance;
+
+  /// Main-shift hours of this duty; the rest of a long duty's span is OT.
+  double get standardHours => _standardHours ?? type.standardHours;
+
+  /// The duty covers the 22:00–06:00 night-allowance block.
+  bool get nightAllowanceApplicable =>
+      _nightAllowance ?? type == ShiftType.night;
+
+  /// OT starts automatically once the main hours are done (D and 24 duties).
+  bool get hasAutoOt => type.spanHours > standardHours;
+
+  /// Roster code: 7, 1, N, D, 8D, 24, DO, CL, VL, SL, NP, HD, PH or A.
+  String get code => isLeave && leaveType != LeaveType.none
+      ? leaveType.code
+      : status == ShiftStatus.missed
+      ? 'A'
+      : type.code;
 
   bool get isLeave => status == ShiftStatus.leave;
   bool get isWork => type != ShiftType.off || otHours > 0;
   bool get isWorked => status == ShiftStatus.completed && isWork;
   bool get otInProgress => otStartTime != null && otEndTime == null;
 
+  /// Checked in and not yet finished.
+  bool get onDuty => checkInTime != null && nextAction != null;
+
+  /// When the main shift ends (or ended) for a duty started at [checkInTime].
+  DateTime? get mainEnd =>
+      checkInTime?.add(Duration(minutes: (standardHours * 60).round()));
+
   /// Hours on the main shift: real clock times when recorded and plausible.
   double get mainHours {
     if (isLeave || status == ShiftStatus.missed || type == ShiftType.off) {
       return 0;
     }
+    if (calculatedMainHours != null) return calculatedMainHours!;
     if (checkInTime != null && checkOutTime != null) {
       final h = checkOutTime!.difference(checkInTime!).inMinutes / 60;
       if (h >= 1 && h <= 16) return h;
     }
-    return type.standardHours;
+    return standardHours;
   }
 
   /// Next step of the attendance workflow, or null when the day is settled.
@@ -372,10 +460,16 @@ class Shift {
     DateTime? checkOutTime,
     DateTime? otStartTime,
     DateTime? otEndTime,
+    double? standardHours,
+    double? calculatedMainHours,
+    bool? nightAllowanceApplicable,
   }) => Shift(
     id: id,
     date: date,
     notes: notes,
+    standardHours: standardHours ?? _standardHours,
+    calculatedMainHours: calculatedMainHours ?? this.calculatedMainHours,
+    nightAllowanceApplicable: nightAllowanceApplicable ?? _nightAllowance,
     type: type ?? this.type,
     status: status ?? this.status,
     leaveType: leaveType ?? this.leaveType,
@@ -396,13 +490,19 @@ class ShiftDraft {
     this.status = ShiftStatus.scheduled,
     this.leaveType = LeaveType.none,
     this.otHours = 0,
+    this.standardHours,
   });
 
   final DateTime date;
   final ShiftType type;
   final ShiftStatus status;
   final LeaveType leaveType;
+
+  /// Extra OT. A long duty's built-in OT is planned by the API from [standardHours].
   final double otHours;
+
+  /// Main-shift hours; null = the duty type's default.
+  final double? standardHours;
 
   Json toJson() => {
     'date': formatDay(date),
@@ -410,6 +510,7 @@ class ShiftDraft {
     'status': status.api,
     'leaveType': leaveType.api,
     if (otHours > 0) 'otHours': otHours,
+    if (standardHours != null) 'standardHours': standardHours,
   };
 }
 
@@ -422,6 +523,7 @@ class ShiftUpdate {
     this.status,
     this.leaveType,
     this.otHours,
+    this.standardHours,
   });
 
   final ShiftAction? action;
@@ -430,6 +532,7 @@ class ShiftUpdate {
   final ShiftStatus? status;
   final LeaveType? leaveType;
   final double? otHours;
+  final double? standardHours;
 
   Json toJson() => {
     if (action != null) 'action': action!.api,
@@ -438,7 +541,55 @@ class ShiftUpdate {
     if (status != null) 'status': status!.api,
     if (leaveType != null) 'leaveType': leaveType!.api,
     if (otHours != null) 'otHours': otHours,
+    if (standardHours != null) 'standardHours': standardHours,
   };
+}
+
+/// Main / OT split returned by `POST /shifts/check-out`.
+class DutySummary {
+  const DutySummary({
+    required this.code,
+    required this.checkIn,
+    required this.checkOut,
+    required this.mainHours,
+    required this.otHours,
+    required this.nightAllowanceApplicable,
+    required this.otPay,
+    required this.nightAllowance,
+    required this.monthToDateOt,
+    required this.monthToDateNight,
+  });
+
+  factory DutySummary.fromJson(Json j) {
+    final pay = j['pay'] as Json? ?? const {};
+    final month = j['monthToDate'] as Json? ?? const {};
+    return DutySummary(
+      code: j['shiftCode'] as String? ?? '',
+      checkIn: _instant(j['checkInTime']) ?? DateTime.now(),
+      checkOut: _instant(j['checkOutTime']) ?? DateTime.now(),
+      mainHours: _num(j['mainHours']),
+      otHours: _num(j['otHours']),
+      nightAllowanceApplicable: j['nightAllowanceApplicable'] as bool? ?? false,
+      otPay: _num(pay['overtime']),
+      nightAllowance: _num(pay['nightAllowance']),
+      monthToDateOt: _num(month['overtime']),
+      monthToDateNight: _num(month['nightAllowance']),
+    );
+  }
+
+  final String code;
+  final DateTime checkIn;
+  final DateTime checkOut;
+  final double mainHours;
+  final double otHours;
+  final bool nightAllowanceApplicable;
+  final double otPay;
+  final double nightAllowance;
+  final double monthToDateOt;
+  final double monthToDateNight;
+
+  double get totalHours => mainHours + otHours;
+  double get totalPay => otPay + nightAllowance;
 }
 
 class BulkResult {

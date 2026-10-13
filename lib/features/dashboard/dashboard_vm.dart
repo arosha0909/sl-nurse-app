@@ -64,7 +64,7 @@ class DashboardData {
       if (s.isLeave || s.status == ShiftStatus.missed) continue;
       final w = ((s.date.day - 1) ~/ 7).clamp(0, weeks - 1);
       variable[w] += s.otHours * forecast.otHourlyRate;
-      if (s.type == ShiftType.night) variable[w] += user.defaultNightAllowance;
+      if (s.nightAllowanceApplicable) variable[w] += user.defaultNightAllowance;
       if (s.isWorked) completedWorkDays.add(s.date);
     }
     // The forecast's "likely extra" OT (habits not yet on the roster) is spread evenly
@@ -129,7 +129,16 @@ Shift? primaryShiftOn(DateTime day, List<Shift> shifts) {
 
 /// The check-in → main shift → OT stepper for a work shift.
 List<ShiftStep> stepsFor(Shift s, DateTime now) {
-  final window = s.type.window(s.date);
+  final rostered = s.type.window(s.date);
+  // A standard shift ends at its rostered time; on a long duty OT starts automatically
+  // once the main hours since check-in are done.
+  final mainStart = s.hasAutoOt
+      ? (s.checkInTime ?? rostered.start)
+      : rostered.start;
+  final window = (
+    start: rostered.start,
+    end: mainStart.add(Duration(minutes: (s.standardHours * 60).round())),
+  );
 
   final checkIn = s.checkInTime != null
       ? ShiftStep(
@@ -182,6 +191,13 @@ List<ShiftStep> stepsFor(Shift s, DateTime now) {
       title: 'OT in progress',
       detail: 'Started at ${Fmt.time(s.otStartTime!)}',
       status: StepStatus.active,
+    );
+  } else if (s.hasAutoOt) {
+    ot = ShiftStep(
+      title: 'OT starts automatically',
+      detail:
+          'at ${Fmt.time(window.end)} · ${Fmt.hours(s.type.spanHours - s.standardHours)} hrs, no sign-out needed',
+      status: StepStatus.upcoming,
     );
   } else if (s.otHours > 0) {
     final otStart = window.end.add(const Duration(minutes: 30));

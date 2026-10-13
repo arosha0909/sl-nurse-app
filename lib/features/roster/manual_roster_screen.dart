@@ -127,7 +127,7 @@ class _MonthEditorState extends State<_MonthEditor> {
   RosterCode? _codeFromExisting(int day) {
     final onDay = widget.existing.where((s) => s.date.day == day).toList();
     if (onDay.isEmpty) return null;
-    return RosterCode.of(onDay.first.type, onDay.first.leaveType);
+    return RosterCode.ofShift(onDay.first);
   }
 
   List<int> get _changed => [
@@ -156,7 +156,7 @@ class _MonthEditorState extends State<_MonthEditor> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'M  M  E  E  N  N  Off, repeating.\nOnly empty days are filled.',
+                '7  7  1  1  N  N  DO, repeating.\nOnly empty days are filled.',
               ),
               const SizedBox(height: 16),
               Row(
@@ -223,9 +223,12 @@ class _MonthEditorState extends State<_MonthEditor> {
           if (_codes[d] != null)
             _codes[d]!.draft(
               DateTime(widget.month.year, widget.month.month, d),
-              otHours: widget.existing
-                  .where((s) => s.date.day == d)
-                  .fold(0.0, (m, s) => s.otHours > m ? s.otHours : m),
+              // Extra OT on a standard shift is kept; a long duty's OT is planned by the API.
+              otHours: _codes[d]!.type.isLongDuty
+                  ? 0
+                  : widget.existing
+                        .where((s) => s.date.day == d && !s.type.isLongDuty)
+                        .fold(0.0, (m, s) => s.otHours > m ? s.otHours : m),
             ),
       ];
       if (drafts.isNotEmpty) await repo.bulkShifts(drafts, overwrite: true);

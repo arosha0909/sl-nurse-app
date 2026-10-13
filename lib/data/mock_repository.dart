@@ -203,17 +203,31 @@ class MockRepository implements NurseRepository {
         'A ${d.type.api} shift already exists on ${formatDay(d.date)}',
       );
     }
-    final shift = Shift(
-      id: 'm${_nextId++}',
+    final shift = _fromDraft('m${_nextId++}', d);
+    _shifts.add(shift);
+    return _delay(shift);
+  }
+
+  /// Same defaults as the API: a long duty plans the rest of its span as OT.
+  static Shift _fromDraft(String id, ShiftDraft d) {
+    final main = d.standardHours ?? d.type.standardHours;
+    final working =
+        d.status != ShiftStatus.leave && d.status != ShiftStatus.missed;
+    final planned = working ? (d.type.spanHours - main).clamp(0, 24) : 0.0;
+    final ot = d.otHours > 0 ? d.otHours : planned.toDouble();
+    return Shift(
+      id: id,
       date: dayOf(d.date),
       type: d.type,
       status: d.status,
       leaveType: d.leaveType,
-      isOT: d.otHours > 0,
-      otHours: d.otHours,
+      isOT: ot > 0,
+      otHours: ot,
+      standardHours: main,
+      nightAllowanceApplicable:
+          working &&
+          (d.type == ShiftType.night || d.type == ShiftType.twentyFour),
     );
-    _shifts.add(shift);
-    return _delay(shift);
   }
 
   @override
@@ -227,7 +241,7 @@ class MockRepository implements NurseRepository {
       case ShiftAction.checkIn:
         s = s.copyWith(checkInTime: at);
       case ShiftAction.checkOut:
-        s = s.copyWith(checkOutTime: at, status: ShiftStatus.completed);
+        s = _checkOut(s, at);
       case ShiftAction.switchToOt:
         s = s.copyWith(
           checkOutTime: s.checkOutTime ?? at,
@@ -243,6 +257,9 @@ class MockRepository implements NurseRepository {
         break;
     }
     if (u.type != null) s = s.copyWith(type: u.type);
+    if (u.standardHours != null) {
+      s = s.copyWith(standardHours: u.standardHours);
+    }
     if (u.leaveType != null) {
       s = s.copyWith(
         leaveType: u.leaveType,
@@ -267,6 +284,86 @@ class MockRepository implements NurseRepository {
     return _delay(s);
   }
 
+  /// Ends a duty: a long duty is split into main hours and automatic OT, like the API.
+  static Shift _checkOut(Shift s, DateTime at) {
+    final start = s.checkInTime ?? at;
+    final worked = at.difference(start).inMinutes / 60;
+    double quarter(double h) => (h * 4).round() / 4;
+    if (!s.hasAutoOt) {
+      return s.copyWith(
+        checkOutTime: at,
+        status: ShiftStatus.completed,
+        calculatedMainHours: quarter(worked),
+      );
+    }
+    final main = worked < s.standardHours ? worked : s.standardHours;
+    final ot = quarter(worked - main);
+    final mainEnd = start.add(Duration(minutes: (main * 60).round()));
+    final done = Shift(
+      id: s.id,
+      date: s.date,
+      type: s.type,
+      status: ShiftStatus.completed,
+      isOT: ot > 0,
+      otHours: ot,
+      standardHours: s.standardHours,
+      calculatedMainHours: quarter(main),
+      checkInTime: start,
+      checkOutTime: mainEnd,
+      otStartTime: ot > 0 ? mainEnd : null,
+      otEndTime: ot > 0 ? at : null,
+      notes: s.notes,
+    );
+    return done.copyWith(nightAllowanceApplicable: _overlapsNight(start, at));
+  }
+
+  /// At least an hour inside 22:00–06:00.
+  static bool _overlapsNight(DateTime start, DateTime end) {
+    var minutes = 0;
+    for (
+      var t = start;
+      t.isBefore(end) && minutes < 60;
+      t = t.add(const Duration(minutes: 15))
+    ) {
+      if (t.hour >= 22 || t.hour < 6) minutes += 15;
+    }
+    return minutes >= 60;
+  }
+
+  @override
+  Future<Shift> startDuty(String shiftId) =>
+      updateShift(shiftId, const ShiftUpdate(action: ShiftAction.checkIn));
+
+  @override
+  Future<({Shift shift, DutySummary summary})> endDuty(String shiftId) async {
+    final before = _shifts.firstWhere((s) => s.id == shiftId);
+    final shift = await updateShift(
+      shiftId,
+      ShiftUpdate(
+        action: before.otInProgress ? ShiftAction.endOt : ShiftAction.checkOut,
+      ),
+    );
+    const otRate = 700.0;
+    final night = shift.nightAllowanceApplicable
+        ? _profile.defaultNightAllowance
+        : 0.0;
+    return (
+      shift: shift,
+      summary: DutySummary(
+        code: shift.code,
+        checkIn: shift.checkInTime!,
+        checkOut: shift.otEndTime ?? shift.checkOutTime!,
+        mainHours: shift.mainHours,
+        otHours: shift.otHours,
+        nightAllowanceApplicable: shift.nightAllowanceApplicable,
+        otPay: shift.otHours * otRate,
+        nightAllowance: night,
+        monthToDateOt: 22600,
+        monthToDateNight: 6000,
+      ),
+    );
+  }
+
   @override
   Future<void> deleteShift(String id) {
     _shifts.removeWhere((s) => s.id == id);
@@ -284,24 +381,16 @@ class MockRepository implements NurseRepository {
         (s) => sameDay(s.date, d.date) && s.type == d.type,
       );
       if (i < 0) {
-        _shifts.add(
-          Shift(
-            id: 'm${_nextId++}',
-            date: dayOf(d.date),
-            type: d.type,
-            status: d.status,
-            leaveType: d.leaveType,
-            otHours: d.otHours,
-            isOT: d.otHours > 0,
-          ),
-        );
+        _shifts.add(_fromDraft('m${_nextId++}', d));
         inserted++;
       } else if (overwrite) {
-        _shifts[i] = _shifts[i].copyWith(
-          status: d.status,
-          leaveType: d.leaveType,
-          otHours: d.otHours,
-          isOT: d.otHours > 0,
+        // Like the API, an overwrite replaces roster fields but keeps recorded times.
+        final old = _shifts[i];
+        _shifts[i] = _fromDraft(old.id, d).copyWith(
+          checkInTime: old.checkInTime,
+          checkOutTime: old.checkOutTime,
+          otStartTime: old.otStartTime,
+          otEndTime: old.otEndTime,
         );
         updated++;
       } else {
@@ -335,7 +424,7 @@ class MockRepository implements NurseRepository {
           otHours: d == 9 ? 3 : 0,
           source: d == 12
               ? 'CL'
-              : (d == 9 ? 'E/OT3' : _rotation[(d - 1) % 7].short),
+              : (d == 9 ? '1/OT3' : _rotation[(d - 1) % 7].code),
           // One smudged cell, as real photos usually have.
           confidence: d == 17 ? 0.6 : 0.86,
         ),

@@ -153,51 +153,87 @@ void main() {
     );
   });
 
-  test('falls back to the roster calculator when the plan locks the smart forecast', () async {
-    final paths = <String>[];
-    final api = client((req) async {
-      paths.add(req.url.path);
-      if (req.url.path.endsWith('/analytics/predict-salary')) {
-        return json(402, {
-          'success': false,
-          'error': {'code': 'PLAN_UPGRADE_REQUIRED', 'message': 'Salary forecast is not included in your Free plan'},
-        });
-      }
-      return json(200, {
-        'success': true,
-        'data': {
-          'salaryIsEstimate': true,
-          'period': {'month': 10, 'year': 2026, 'daysInMonth': 31, 'isPastMonth': false, 'isFutureMonth': false},
-          'earnings': {
-            'baseSalary': 55000,
-            'allowancesTotal': 0,
-            'nightAllowance': {'shifts': 2, 'ratePerShift': 500, 'amount': 1000},
-            'overtime': {'completedHours': 4, 'plannedHours': 2, 'totalHours': 6, 'hourlyRate': 343.75, 'amount': 2062.5},
-            'gross': 58062.5,
+  test(
+    'falls back to the roster calculator when the plan locks the smart forecast',
+    () async {
+      final paths = <String>[];
+      final api = client((req) async {
+        paths.add(req.url.path);
+        if (req.url.path.endsWith('/analytics/predict-salary')) {
+          return json(402, {
+            'success': false,
+            'error': {
+              'code': 'PLAN_UPGRADE_REQUIRED',
+              'message': 'Salary forecast is not included in your Free plan',
+            },
+          });
+        }
+        return json(200, {
+          'success': true,
+          'data': {
+            'salaryIsEstimate': true,
+            'period': {
+              'month': 10,
+              'year': 2026,
+              'daysInMonth': 31,
+              'isPastMonth': false,
+              'isFutureMonth': false,
+            },
+            'earnings': {
+              'baseSalary': 55000,
+              'allowancesTotal': 0,
+              'nightAllowance': {
+                'shifts': 2,
+                'ratePerShift': 500,
+                'amount': 1000,
+              },
+              'overtime': {
+                'completedHours': 4,
+                'plannedHours': 2,
+                'totalHours': 6,
+                'hourlyRate': 343.75,
+                'amount': 2062.5,
+              },
+              'gross': 58062.5,
+            },
+            'deductions': {
+              'configuredTotal': 0,
+              'noPay': {'amount': 0},
+              'total': 0,
+            },
+            'netSalary': 58062.5,
+            'earnedToDate': {'overtime': 1375, 'nightAllowance': 500},
+            'assumptions': [
+              'Using a typical basic salary of LKR 55,000 until you add yours.',
+            ],
+            'warnings': [],
           },
-          'deductions': {'configuredTotal': 0, 'noPay': {'amount': 0}, 'total': 0},
-          'netSalary': 58062.5,
-          'earnedToDate': {'overtime': 1375, 'nightAllowance': 500},
-          'assumptions': ['Using a typical basic salary of LKR 55,000 until you add yours.'],
-          'warnings': [],
-        },
+        });
       });
-    });
-    final f = await ApiRepository(api).forecast(month: 10, year: 2026);
-    expect(paths, ['/api/v1/analytics/predict-salary', '/api/v1/salary/predict']);
-    expect(f.isBasic, isTrue);
-    expect(f.salaryIsEstimate, isTrue);
-    expect(f.projectedNet, 58062.5);
-    expect(f.otTotal, 6);
-    expect(f.nightShifts, 2);
-    expect(f.rangeLow, f.rangeHigh);
-  });
+      final f = await ApiRepository(api).forecast(month: 10, year: 2026);
+      expect(paths, [
+        '/api/v1/analytics/predict-salary',
+        '/api/v1/salary/predict',
+      ]);
+      expect(f.isBasic, isTrue);
+      expect(f.salaryIsEstimate, isTrue);
+      expect(f.projectedNet, 58062.5);
+      expect(f.otTotal, 6);
+      expect(f.nightShifts, 2);
+      expect(f.rangeLow, f.rangeHigh);
+    },
+  );
 
   test('other forecast errors are not masked by the fallback', () async {
-    final api = client((_) async => json(500, {
-          'success': false,
-          'error': {'code': 'INTERNAL_ERROR', 'message': 'boom'},
-        }));
-    await expectLater(ApiRepository(api).forecast(month: 10, year: 2026), throwsA(isA<ApiException>().having((e) => e.status, 'status', 500)));
+    final api = client(
+      (_) async => json(500, {
+        'success': false,
+        'error': {'code': 'INTERNAL_ERROR', 'message': 'boom'},
+      }),
+    );
+    await expectLater(
+      ApiRepository(api).forecast(month: 10, year: 2026),
+      throwsA(isA<ApiException>().having((e) => e.status, 'status', 500)),
+    );
   });
 }

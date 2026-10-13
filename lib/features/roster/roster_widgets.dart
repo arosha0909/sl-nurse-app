@@ -5,15 +5,27 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/common.dart';
 import '../../data/models.dart';
 
-/// What a nurse can put on a roster day. Leave codes sit in the Morning slot, as the API expects.
+/// What a nurse can put on a roster day, using Sri Lankan ward codes. Leave and absence
+/// sit in the Morning slot, as the API expects.
 enum RosterCode {
-  morning('M', 'Morning', ShiftType.morning, LeaveType.none),
-  evening('E', 'Evening', ShiftType.evening, LeaveType.none),
+  morning('7', 'Morning', ShiftType.morning, LeaveType.none),
+  evening('1', 'Evening', ShiftType.evening, LeaveType.none),
   night('N', 'Night', ShiftType.night, LeaveType.none),
-  off('Off', 'Day off', ShiftType.off, LeaveType.none),
+  day('D', 'Day duty, 12 h', ShiftType.day, LeaveType.none),
+  shortDuty('8D', 'Short duty, 8 h', ShiftType.short, LeaveType.none),
+  twentyFour('24', '24-hour duty', ShiftType.twentyFour, LeaveType.none),
+  off('DO', 'Day off', ShiftType.off, LeaveType.none),
   casual('CL', 'Casual leave', ShiftType.morning, LeaveType.casual),
+  vacation('VL', 'Vacation leave', ShiftType.morning, LeaveType.vacation),
   sick('SL', 'Sick leave', ShiftType.morning, LeaveType.sick),
-  noPay('NP', 'No-pay leave', ShiftType.morning, LeaveType.noPay);
+  noPay('NP', 'No-pay leave', ShiftType.morning, LeaveType.noPay),
+  publicHoliday(
+    'PH',
+    'Public holiday',
+    ShiftType.morning,
+    LeaveType.publicHoliday,
+  ),
+  absent('A', 'Absent', ShiftType.morning, LeaveType.none);
 
   const RosterCode(this.short, this.label, this.type, this.leave);
   final String short;
@@ -23,19 +35,35 @@ enum RosterCode {
 
   bool get isLeave => leave != LeaveType.none;
 
-  static RosterCode of(ShiftType type, LeaveType leave) =>
-      leave == LeaveType.none
-      ? values.firstWhere((c) => c.type == type && !c.isLeave)
-      : values.firstWhere(
-          (c) => c.leave == leave,
-          orElse: () => RosterCode.casual,
-        );
+  /// Not a working duty: leave, absence or a day off.
+  bool get isRest => isLeave || this == absent || this == off;
+
+  static RosterCode of(
+    ShiftType type,
+    LeaveType leave, [
+    ShiftStatus status = ShiftStatus.scheduled,
+  ]) {
+    if (status == ShiftStatus.missed) return RosterCode.absent;
+    if (leave == LeaveType.none) {
+      return values.firstWhere(
+        (c) => c.type == type && !c.isLeave && c != absent,
+      );
+    }
+    return values.firstWhere(
+      (c) => c.leave == leave,
+      orElse: () => RosterCode.casual,
+    );
+  }
+
+  static RosterCode ofShift(Shift s) => of(s.type, s.leaveType, s.status);
 
   Color get color => switch (this) {
     RosterCode.morning => AppColors.peach,
     RosterCode.evening => AppColors.lavender,
-    RosterCode.night => AppColors.sky,
+    RosterCode.night || RosterCode.twentyFour => AppColors.sky,
+    RosterCode.day || RosterCode.shortDuty => AppColors.peach,
     RosterCode.off => AppColors.surfaceMuted,
+    RosterCode.absent => AppColors.surfaceMuted,
     _ => AppColors.mint,
   };
 
@@ -44,8 +72,12 @@ enum RosterCode {
         date: date,
         type: type,
         leaveType: leave,
-        status: isLeave ? ShiftStatus.leave : (status ?? ShiftStatus.scheduled),
-        otHours: isLeave ? 0 : otHours,
+        status: isLeave
+            ? ShiftStatus.leave
+            : this == absent
+            ? ShiftStatus.missed
+            : (status ?? ShiftStatus.scheduled),
+        otHours: isRest ? 0 : otHours,
       );
 }
 

@@ -171,30 +171,34 @@ class _SkeletonListState extends State<SkeletonList>
     return Semantics(
       label: 'Loading',
       child: SafeArea(
-        child: ResponsiveContent(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.screenPadding),
-            child: AnimatedBuilder(
-              animation: _c,
-              builder: (context, _) => Column(
-                children: [
-                  for (final h in widget.heights) ...[
-                    Container(
-                      height: h,
-                      decoration: BoxDecoration(
-                        color: Color.lerp(
-                          AppColors.lavender,
-                          AppColors.surfaceMuted,
-                          _c.value,
-                        ),
-                        borderRadius: BorderRadius.circular(
-                          AppSpacing.cardRadius,
+        // Placeholders taller than the screen are clipped, not overflowed.
+        child: SingleChildScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          child: ResponsiveContent(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.screenPadding),
+              child: AnimatedBuilder(
+                animation: _c,
+                builder: (context, _) => Column(
+                  children: [
+                    for (final h in widget.heights) ...[
+                      Container(
+                        height: h,
+                        decoration: BoxDecoration(
+                          color: Color.lerp(
+                            AppColors.lavender,
+                            AppColors.surfaceMuted,
+                            _c.value,
+                          ),
+                          borderRadius: BorderRadius.circular(
+                            AppSpacing.cardRadius,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: AppSpacing.gap),
+                      const SizedBox(height: AppSpacing.gap),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
