@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/pastel_card.dart';
 import '../../../data/models.dart';
 import '../../shifts/duty_actions.dart';
+import '../../../core/i18n/i18n.dart';
 
 /// Where a duty in progress stands at a given moment.
 class DutyProgress {
@@ -128,7 +129,7 @@ class _ActiveDutyCardState extends State<ActiveDutyCard> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  s.type.label,
+                  context.tr(s.type.label),
                   style: text.titleMedium,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -147,7 +148,7 @@ class _ActiveDutyCardState extends State<ActiveDutyCard> {
                   children: [
                     _Legend(
                       color: AppColors.mintDeep,
-                      label: 'Main Shift',
+                      label: context.tr('Main Shift'),
                       value: p.mainDone
                           ? '${formatDuration(p.main)} ✓'
                           : '${formatDuration(p.main)} · ${formatDuration(p.mainLeft)} left',
@@ -155,7 +156,7 @@ class _ActiveDutyCardState extends State<ActiveDutyCard> {
                     const SizedBox(height: 8),
                     _Legend(
                       color: AppColors.peachDeep,
-                      label: 'OT Shift',
+                      label: context.tr('OT Shift'),
                       value: p.ot > Duration.zero
                           ? formatDuration(p.ot)
                           : s.hasAutoOt
@@ -180,7 +181,7 @@ class _ActiveDutyCardState extends State<ActiveDutyCard> {
                             const SizedBox(width: 4),
                             Flexible(
                               child: Text(
-                                'Night allowance duty',
+                                context.tr('Night allowance duty'),
                                 style: text.bodySmall,
                               ),
                             ),
@@ -200,7 +201,7 @@ class _ActiveDutyCardState extends State<ActiveDutyCard> {
                   child: OutlinedButton.icon(
                     onPressed: () => widget.onAction(s, ShiftAction.switchToOt),
                     icon: const Icon(Icons.more_time_rounded, size: 18),
-                    label: const FittedBox(child: Text('Stay on OT')),
+                    label: FittedBox(child: Text(context.tr('Stay on OT'))),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -210,7 +211,7 @@ class _ActiveDutyCardState extends State<ActiveDutyCard> {
                   child: FilledButton.icon(
                     onPressed: () => widget.onAction(s, next),
                     icon: const Icon(Icons.logout_rounded, size: 18),
-                    label: FittedBox(child: Text(next.label)),
+                    label: FittedBox(child: Text(context.tr(next.label))),
                   ),
                 ),
             ],
@@ -257,7 +258,7 @@ class SplitDutyRing extends StatelessWidget {
                   style: text.titleLarge?.copyWith(fontSize: 20),
                 ),
                 Text(
-                  p.onOt ? 'OT logged' : 'Main shift',
+                  p.onOt ? context.tr('OT logged') : context.tr('Main shift'),
                   style: text.bodySmall,
                 ),
               ],
@@ -372,7 +373,7 @@ class _PhaseChip extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
     ),
     child: Text(
-      onOt ? 'Overtime (OT) Logged' : 'Main Shift',
+      onOt ? context.tr('Overtime (OT) Logged') : context.tr('Main Shift'),
       style: Theme.of(context).textTheme.labelSmall?.copyWith(
         color: Colors.white,
         fontWeight: FontWeight.w700,

@@ -506,14 +506,7 @@ class _RemindersSheetState extends State<RemindersSheet> {
     setState(() => _busy = true);
     final scope = AppScope.of(context);
     final granted = await scope.reminders.enable();
-    if (granted) {
-      final now = scope.today();
-      final upcoming = await scope.repository.shifts(
-        from: now,
-        to: now.add(const Duration(days: 14)),
-      );
-      await scope.reminders.schedule(upcoming, now: now);
-    }
+    if (granted) await scope.rescheduleReminders();
     if (!mounted) return;
     Navigator.pop(context);
     context.showMessage(

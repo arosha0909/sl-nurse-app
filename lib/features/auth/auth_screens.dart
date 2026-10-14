@@ -6,11 +6,13 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/background_waves.dart';
+import '../../core/widgets/app_logo.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/pastel_card.dart';
 import '../../data/models.dart';
 import '../roster/roster_widgets.dart';
 import 'quick_login.dart';
+import '../../core/i18n/i18n.dart';
 
 /* ------------------------------------------------------------------ *
  * Welcome (reference: "Your passport to fitness success")
@@ -45,11 +47,6 @@ class WelcomeScreen extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
-                              Icons.health_and_safety_rounded,
-                              color: AppColors.lavenderDeep,
-                            ),
-                            const SizedBox(width: 6),
                             Text(
                               'Nurse Companion',
                               style: text.titleMedium?.copyWith(
@@ -58,18 +55,32 @@ class WelcomeScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 14),
-                        const _Illustration(),
+                        const SizedBox(height: 18),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(40),
+                            boxShadow: [
+                              BoxShadow(
+                                color: LogoColors.charcoal.withValues(
+                                  alpha: 0.28,
+                                ),
+                                blurRadius: 30,
+                                offset: const Offset(0, 14),
+                              ),
+                            ],
+                          ),
+                          child: const AppLogo(size: 172),
+                        ),
                         const SizedBox(height: 20),
                         Text(
-                          'Your companion\nfor every shift',
+                          context.tr('Your companion\nfor every shift'),
                           textAlign: TextAlign.center,
                           style: text.headlineMedium?.copyWith(
                             fontSize: 30,
                             height: 1.2,
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         Text(
                           'Track duties and OT, scan your roster, and see what this month\'s salary will be. All in one place.',
                           textAlign: TextAlign.center,
@@ -109,15 +120,13 @@ class WelcomeScreen extends StatelessWidget {
                         height: 56,
                         child: FilledButton(
                           onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => LoginScreen(),
-                            ),
+                            MaterialPageRoute(builder: (_) => LoginScreen()),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                'Get Started',
+                                context.tr('Get Started'),
                                 style: TextStyle(fontSize: 15),
                               ),
                               SizedBox(width: 8),
@@ -126,14 +135,12 @@ class WelcomeScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       TextButton(
                         onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const RegisterScreen(),
-                          ),
+                          MaterialPageRoute(builder: (_) => RegisterScreen()),
                         ),
-                        child: const Text('New here? Create an account'),
+                        child: Text(context.tr('New here? Create an account')),
                       ),
                     ],
                   ),
@@ -192,7 +199,7 @@ class _Highlights extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    item.text,
+                    context.tr(item.text),
                     style: text.bodyMedium?.copyWith(
                       color: AppColors.textPrimary,
                     ),
@@ -202,108 +209,6 @@ class _Highlights extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-/// Soft pastel composition standing in for an illustration asset.
-class _Illustration extends StatelessWidget {
-  const _Illustration();
-
-  @override
-  Widget build(BuildContext context) {
-    Widget floating(IconData icon, Color bg, Color fg, double size) =>
-        Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(size * 0.32),
-            boxShadow: AppColors.softShadow(0.06),
-          ),
-          child: Icon(icon, color: fg, size: size * 0.48),
-        );
-
-    return SizedBox(
-      height: 250,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 210,
-            height: 210,
-            decoration: const BoxDecoration(
-              color: AppColors.lavender,
-              shape: BoxShape.circle,
-            ),
-          ),
-          Positioned(
-            bottom: 18,
-            child: Container(
-              width: 150,
-              height: 22,
-              decoration: BoxDecoration(
-                color: AppColors.ink.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-          ),
-          Container(
-            width: 112,
-            height: 112,
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(34),
-              boxShadow: AppColors.softShadow(0.08),
-            ),
-            child: const Icon(
-              Icons.medical_services_rounded,
-              size: 56,
-              color: AppColors.lavenderDeep,
-            ),
-          ),
-          Positioned(
-            left: 22,
-            top: 26,
-            child: floating(
-              Icons.calendar_month_rounded,
-              AppColors.peach,
-              AppColors.peachDeep,
-              58,
-            ),
-          ),
-          Positioned(
-            right: 18,
-            top: 44,
-            child: floating(
-              Icons.more_time_rounded,
-              AppColors.mint,
-              AppColors.mintDeep,
-              52,
-            ),
-          ),
-          Positioned(
-            left: 38,
-            bottom: 34,
-            child: floating(
-              Icons.payments_outlined,
-              AppColors.sky,
-              AppColors.skyDeep,
-              50,
-            ),
-          ),
-          Positioned(
-            right: 40,
-            bottom: 22,
-            child: floating(
-              Icons.favorite_rounded,
-              AppColors.surface,
-              AppColors.peachDeep,
-              42,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -381,11 +286,8 @@ class _AuthScaffold extends StatelessWidget {
                 else
                   Row(
                     children: [
-                      const Icon(
-                        Icons.health_and_safety_rounded,
-                        color: AppColors.lavenderDeep,
-                      ),
-                      const SizedBox(width: 6),
+                      const AppLogo(size: 30),
+                      const SizedBox(width: 8),
                       Text(
                         'Nurse Companion',
                         style: text.titleMedium?.copyWith(
@@ -543,8 +445,8 @@ class _SocialButtonsState extends State<_SocialButtons> {
                           backgroundColor: Colors.black,
                         ),
                         icon: const Icon(Icons.apple, size: 22),
-                        label: const Text(
-                          'Continue with Apple',
+                        label: Text(
+                          context.tr('Continue with Apple'),
                           style: TextStyle(fontSize: 15),
                         ),
                       )
@@ -554,8 +456,8 @@ class _SocialButtonsState extends State<_SocialButtons> {
                           backgroundColor: Colors.white,
                         ),
                         icon: const _GoogleMark(),
-                        label: const Text(
-                          'Continue with Google',
+                        label: Text(
+                          context.tr('Continue with Google'),
                           style: TextStyle(fontSize: 15),
                         ),
                       ),
@@ -698,10 +600,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     return _AuthScaffold(
-      title: 'Welcome back',
+      title: context.tr('Welcome back'),
       subtitle: _remembered
-          ? 'Enter your password to continue.'
-          : 'Sign in to see your shifts and salary.',
+          ? context.tr('Enter your password to continue.')
+          : context.tr('Sign in to see your shifts and salary.'),
       child: Column(
         children: [
           if (widget.showQuickLogin)
@@ -744,12 +646,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     textInputAction: TextInputAction.next,
                     onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
                     decoration: InputDecoration(
-                      labelText: 'Email or mobile',
+                      labelText: context.tr('Email or mobile'),
                       prefixIcon: const Icon(Icons.person_outline_rounded),
                       suffixIcon: _remembered
                           ? TextButton(
                               onPressed: _forgetId,
-                              child: const Text('Not you?'),
+                              child: Text(context.tr('Not you?')),
                             )
                           : null,
                     ),
@@ -765,10 +667,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     textInputAction: TextInputAction.done,
                     onFieldSubmitted: (_) => _submit(),
                     decoration: InputDecoration(
-                      labelText: 'Password',
+                      labelText: context.tr('Password'),
                       prefixIcon: const Icon(Icons.lock_outline_rounded),
                       suffixIcon: IconButton(
-                        tooltip: _obscure ? 'Show password' : 'Hide password',
+                        tooltip: _obscure
+                            ? context.tr('Show password')
+                            : context.tr('Hide password'),
                         onPressed: () => setState(() => _obscure = !_obscure),
                         icon: Icon(
                           _obscure
@@ -777,12 +681,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
-                    validator: (v) =>
-                        (v ?? '').isEmpty ? 'Enter your password' : null,
+                    validator: (v) => (v ?? '').isEmpty
+                        ? context.tr('Enter your password')
+                        : null,
                   ),
                   const SizedBox(height: 22),
                   _SubmitButton(
-                    label: 'Sign in',
+                    label: context.tr('Sign in'),
                     busy: _busy,
                     onPressed: _submit,
                   ),
@@ -802,7 +707,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ? nav.push(route)
                   : nav.pushReplacement(route);
             },
-            child: const Text('New here? Create an account'),
+            child: Text(context.tr('New here? Create an account')),
           ),
         ],
       ),
@@ -918,8 +823,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       AutofillHints.telephoneNumber,
                     ],
                     textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Email or mobile',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Email or mobile'),
                       prefixIcon: Icon(Icons.person_outline_rounded),
                     ),
                     validator: (v) =>
@@ -933,11 +838,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     textInputAction: TextInputAction.done,
                     onFieldSubmitted: (_) => _submit(),
                     decoration: InputDecoration(
-                      labelText: 'Password',
+                      labelText: context.tr('Password'),
                       helperText: '8+ characters with letters and numbers',
                       prefixIcon: const Icon(Icons.lock_outline_rounded),
                       suffixIcon: IconButton(
-                        tooltip: _obscure ? 'Show password' : 'Hide password',
+                        tooltip: _obscure
+                            ? context.tr('Show password')
+                            : context.tr('Hide password'),
                         onPressed: () => setState(() => _obscure = !_obscure),
                         icon: Icon(
                           _obscure
@@ -979,7 +886,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   );
                 }
               },
-              child: const Text('Already registered? Sign in'),
+              child: Text(context.tr('Already registered? Sign in')),
             ),
           ),
         ],

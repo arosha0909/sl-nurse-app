@@ -6,6 +6,7 @@ import '../../../core/format.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/pastel_card.dart';
 import '../duty_vm.dart';
+import '../../../core/i18n/i18n.dart';
 
 /// Two equal-height widgets: completed duty ring (green) and OT trend (purple).
 class DutyStatWidgets extends StatelessWidget {
@@ -80,8 +81,8 @@ class _CompletedDutyCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          const _CardTitle(
-            title: 'Completed\nDuty',
+          _CardTitle(
+            title: context.tr('Completed\nDuty'),
             icon: Icons.verified_outlined,
             iconColor: AppColors.mintDeep,
           ),
@@ -96,7 +97,7 @@ class _CompletedDutyCard extends StatelessWidget {
                 children: [
                   Text('$pct%', style: text.titleLarge),
                   Text(
-                    'Completed',
+                    context.tr('Completed'),
                     style: text.bodySmall?.copyWith(fontSize: 10),
                   ),
                 ],
@@ -106,7 +107,7 @@ class _CompletedDutyCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             summary.dueShifts == 0
-                ? 'No shifts due yet'
+                ? context.tr('No shifts due yet')
                 : '${summary.completedShifts} of ${summary.dueShifts} shifts',
             style: text.bodySmall?.copyWith(
               color: AppColors.textPrimary.withValues(alpha: 0.7),
@@ -132,8 +133,8 @@ class _OtLoggedCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _CardTitle(
-            title: 'OT Hours\nLogged',
+          _CardTitle(
+            title: context.tr('OT Hours\nLogged'),
             icon: Icons.more_time_rounded,
             iconColor: AppColors.lavenderDeep,
           ),
@@ -151,7 +152,7 @@ class _OtLoggedCard extends StatelessWidget {
                 fillColor: Colors.transparent,
                 height: 64,
                 highlightLast: true,
-                semanticLabel: 'OT hours trend this month',
+                semanticLabel: context.tr('OT hours trend this month'),
               ),
             ],
           ),

@@ -8,6 +8,7 @@ import '../../core/widgets/pastel_card.dart';
 import '../../data/models.dart';
 import '../onboarding/progressive_prompts.dart';
 import 'duty_actions.dart';
+import '../../core/i18n/i18n.dart';
 
 /// Opens the actions sheet for [shift]. Returns true if something changed.
 Future<bool?> showShiftActions(BuildContext context, Shift shift) =>
@@ -142,12 +143,12 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
         s.checkInTime == null && s.status == ShiftStatus.scheduled;
 
     return _SheetFrame(
-      title: '${s.code} · ${s.type.label}',
+      title: '${s.code} · ${context.tr(s.type.label)}',
       subtitle:
           '${Fmt.weekday(s.date)}, ${Fmt.dayMonthYear(s.date)} · ${s.type.timeRange}',
       children: [
         if (working && notStarted) ...[
-          const _Label('Skipped this duty? Mark leave in one tap'),
+          _Label(context.tr('Skipped this duty? Mark leave in one tap')),
           Row(
             children: [
               for (final (i, leave) in const [
@@ -162,10 +163,14 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
                         ? null
                         : () => _update(
                             ShiftUpdate(leaveType: leave, otHours: 0),
-                            '${leave.label} recorded',
+                            context.tr('{leave} recorded', {
+                              'leave': context.tr(leave.label),
+                            }),
                           ),
                     child: FittedBox(
-                      child: Text(leave.label.replaceFirst(' leave', '')),
+                      child: Text(
+                        context.tr(leave.label.replaceFirst(' leave', '')),
+                      ),
                     ),
                   ),
                 ),
@@ -177,7 +182,7 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
         if (s.type.isLongDuty &&
             notStarted &&
             _mainOptions(s.type).length > 1) ...[
-          const _Label('Main shift hours'),
+          _Label(context.tr('Main shift hours')),
           MainHoursPicker(
             type: s.type,
             value: s.standardHours,
@@ -186,14 +191,14 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
                 : (h) => _update(
                     ShiftUpdate(standardHours: h),
                     h >= s.type.spanHours
-                        ? 'Whole duty counted as main shift'
+                        ? context.tr('Whole duty counted as main shift')
                         : 'OT starts after ${Fmt.hours(h)} hrs',
                   ),
           ),
           const SizedBox(height: 16),
         ],
         if (working || canEndOt) ...[
-          const _Label('Attendance'),
+          _Label(context.tr('Attendance')),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -227,14 +232,14 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
           const SizedBox(height: 16),
         ],
         if (!s.isLeave) ...[
-          const _Label('OT hours'),
+          _Label(context.tr('OT hours')),
           PastelCard(
             color: AppColors.lavender,
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
               children: [
                 IconButton(
-                  tooltip: 'Less OT',
+                  tooltip: context.tr('Less OT'),
                   onPressed: _ot <= 0 || _busy
                       ? null
                       : () => setState(() => _ot = (_ot - 0.5).clamp(0, 16)),
@@ -248,7 +253,7 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
                   ),
                 ),
                 IconButton(
-                  tooltip: 'More OT',
+                  tooltip: context.tr('More OT'),
                   onPressed: _ot >= 16 || _busy
                       ? null
                       : () => setState(() => _ot = (_ot + 0.5).clamp(0, 16)),
@@ -257,37 +262,40 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
                 FilledButton(
                   onPressed: _ot == s.otHours || _busy
                       ? null
-                      : () => _update(ShiftUpdate(otHours: _ot), 'OT updated'),
-                  child: const Text('Save'),
+                      : () => _update(
+                          ShiftUpdate(otHours: _ot),
+                          context.tr('OT updated'),
+                        ),
+                  child: Text(context.tr('Save')),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
         ],
-        const _Label('Mark as'),
+        _Label(context.tr('Mark as')),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
             _StatusChip(
-              label: 'Completed',
+              label: context.tr('Completed'),
               selected: s.status == ShiftStatus.completed,
               onTap: _busy
                   ? null
                   : () => _update(
                       const ShiftUpdate(status: ShiftStatus.completed),
-                      'Marked completed',
+                      context.tr('Marked completed'),
                     ),
             ),
             _StatusChip(
-              label: 'Missed',
+              label: context.tr('Missed'),
               selected: s.status == ShiftStatus.missed,
               onTap: _busy
                   ? null
                   : () => _update(
                       const ShiftUpdate(status: ShiftStatus.missed, otHours: 0),
-                      'Marked missed',
+                      context.tr('Marked missed'),
                     ),
             ),
             for (final leave in [
@@ -299,19 +307,21 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
               LeaveType.publicHoliday,
             ])
               _StatusChip(
-                label: leave.label,
+                label: context.tr(leave.label),
                 selected: s.leaveType == leave,
                 // A leave day can't carry OT, so clear it in the same request.
                 onTap: _busy
                     ? null
                     : () => _update(
                         ShiftUpdate(leaveType: leave, otHours: 0),
-                        '${leave.label} recorded',
+                        context.tr('{leave} recorded', {
+                          'leave': context.tr(leave.label),
+                        }),
                       ),
               ),
             if (s.status != ShiftStatus.scheduled)
               _StatusChip(
-                label: 'Back to scheduled',
+                label: context.tr('Back to scheduled'),
                 selected: false,
                 onTap: _busy
                     ? null
@@ -320,7 +330,7 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
                           status: ShiftStatus.scheduled,
                           leaveType: LeaveType.none,
                         ),
-                        'Shift reset to scheduled',
+                        context.tr('Shift reset to scheduled'),
                       ),
               ),
           ],
@@ -330,7 +340,7 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
           onPressed: _busy ? null : _confirmDelete,
           style: TextButton.styleFrom(foregroundColor: Colors.red.shade400),
           icon: const Icon(Icons.delete_outline_rounded),
-          label: const Text('Delete shift'),
+          label: Text(context.tr('Delete shift')),
         ),
       ],
     );
@@ -348,18 +358,20 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
     final yes = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete this shift?'),
-        content: const Text(
-          'It will be removed from your roster and salary calculations.',
+        title: Text(context.tr('Delete this shift?')),
+        content: Text(
+          context.tr(
+            'It will be removed from your roster and salary calculations.',
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+            child: Text(context.tr('Delete')),
           ),
         ],
       ),
@@ -367,7 +379,7 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
     if (yes == true && mounted) {
       await _run(
         () => AppScope.of(context).repository.deleteShift(widget.shift.id),
-        'Shift deleted',
+        context.tr('Shift deleted'),
       );
     }
   }
@@ -430,7 +442,7 @@ class _ActionChip extends StatelessWidget {
     return FilledButton.icon(
       onPressed: enabled ? () => onTap(action) : null,
       icon: Icon(icon, size: 18),
-      label: Text(action.label),
+      label: Text(context.tr(action.label)),
     );
   }
 }
@@ -500,7 +512,7 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
           standardHours: _type.isLongDuty ? _mainHours : null,
         ),
       ),
-      success: '${_type.label} added',
+      success: context.tr('{shift} added', {'shift': context.tr(_type.label)}),
     );
     if (!mounted) return;
     setState(() => _busy = false);
@@ -514,17 +526,18 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
   Widget build(BuildContext context) {
     final past = !widget.date.isAfter(dayOf(DateTime.now()));
     return _SheetFrame(
-      title: 'Add shift',
+      title: context.tr('Add shift'),
       subtitle: '${Fmt.weekday(widget.date)}, ${Fmt.dayMonthYear(widget.date)}',
       children: [
-        const _Label('Duty'),
+        _Label(context.tr('Duty')),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
             for (final t in ShiftType.values)
               _StatusChip(
-                label: '${t.code}  ${t.label.replaceFirst(' Shift', '')}',
+                label:
+                    '${t.code}  ${context.tr(t.label.replaceFirst(' Shift', ''))}',
                 selected: _type == t,
                 onTap: () => setState(() {
                   _type = t;
@@ -538,7 +551,7 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
         Text(_type.timeRange, style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 12),
         if (_mainOptions(_type).length > 1) ...[
-          const _Label('Main shift hours'),
+          _Label(context.tr('Main shift hours')),
           MainHoursPicker(
             type: _type,
             value: _mainHours,
@@ -550,8 +563,8 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
           SwitchListTile(
             value: _completed,
             onChanged: (v) => setState(() => _completed = v),
-            title: const Text('Already worked'),
-            subtitle: const Text('Counts towards earned pay'),
+            title: Text(context.tr('Already worked')),
+            subtitle: Text(context.tr('Counts towards earned pay')),
             contentPadding: EdgeInsets.zero,
           ),
         if (_autoOt)
@@ -565,11 +578,11 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
             ),
           )
         else ...[
-          const _Label('OT hours'),
+          _Label(context.tr('OT hours')),
           Row(
             children: [
               IconButton.filledTonal(
-                tooltip: 'Less OT',
+                tooltip: context.tr('Less OT'),
                 onPressed: _ot <= 0 ? null : () => setState(() => _ot -= 0.5),
                 icon: const Icon(Icons.remove_rounded),
               ),
@@ -581,7 +594,7 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
                 ),
               ),
               IconButton.filledTonal(
-                tooltip: 'More OT',
+                tooltip: context.tr('More OT'),
                 onPressed: _ot >= 16 ? null : () => setState(() => _ot += 0.5),
                 icon: const Icon(Icons.add_rounded),
               ),
@@ -599,7 +612,7 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
                     color: Colors.white,
                   ),
                 )
-              : const Text('Add shift'),
+              : Text(context.tr('Add shift')),
         ),
       ],
     );

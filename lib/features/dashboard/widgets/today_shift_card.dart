@@ -8,6 +8,7 @@ import '../../../core/widgets/pastel_card.dart';
 import '../../../data/models.dart';
 import '../dashboard_vm.dart';
 import 'active_duty_card.dart';
+import '../../../core/i18n/i18n.dart';
 
 /// "Today's Activity"-style card: a shift tile on the left and the
 /// check-in → main shift → OT workflow on the right, with the next action button.
@@ -105,12 +106,15 @@ class _EmptyToday extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('No shift today', style: text.titleSmall),
-                Text('Add one to track check-in and OT', style: text.bodySmall),
+                Text(context.tr('No shift today'), style: text.titleSmall),
+                Text(
+                  context.tr('Add one to track check-in and OT'),
+                  style: text.bodySmall,
+                ),
               ],
             ),
           ),
-          FilledButton(onPressed: onAdd, child: const Text('Add')),
+          FilledButton(onPressed: onAdd, child: Text(context.tr('Add'))),
         ],
       ),
     );
@@ -144,14 +148,14 @@ class _RestDay extends StatelessWidget {
               children: [
                 Text(
                   leave
-                      ? 'On ${shift.leaveType.label.toLowerCase()}'
-                      : 'Day off',
+                      ? context.tr(shift.leaveType.label)
+                      : context.tr('Day off'),
                   style: text.titleSmall,
                 ),
                 Text(
                   leave
-                      ? 'Rest well, nothing to check in today'
-                      : 'Enjoy your rest day',
+                      ? context.tr('Rest well, nothing to check in today')
+                      : context.tr('Enjoy your rest day'),
                   style: text.bodySmall,
                 ),
               ],
@@ -221,7 +225,7 @@ class _ShiftTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  '${shift.code} · ${shift.type.label}',
+                  '${shift.code} · ${context.tr(shift.type.label)}',
                   style: text.titleSmall,
                   textAlign: align,
                 ),
@@ -304,7 +308,7 @@ class _StepList extends StatelessWidget {
                   minimumSize: const Size(0, 36),
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                 ),
-                child: FittedBox(child: Text(next!.label)),
+                child: FittedBox(child: Text(context.tr(next!.label))),
               ),
             ),
           ],

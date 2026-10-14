@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/config.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/i18n/i18n.dart';
 
 /// A seeded test account (sl-nurse-api: `npm run seed:demo`).
 class QuickLoginAccount {
@@ -90,7 +91,7 @@ class QuickLoginStrip extends StatelessWidget {
               color: AppColors.peachDeep,
             ),
             const SizedBox(width: 4),
-            Text('Quick test login', style: text.titleSmall),
+            Text(context.tr('Quick test login'), style: text.titleSmall),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),

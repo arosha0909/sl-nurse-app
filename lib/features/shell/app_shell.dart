@@ -13,6 +13,7 @@ import '../onboarding/progressive_prompts.dart';
 import '../profile/profile_screen.dart';
 import '../roster/manual_roster_screen.dart';
 import '../roster/roster_scan_screen.dart';
+import '../../core/i18n/i18n.dart';
 
 /// Root scaffold: tab content over the wave background, the floating dock on top,
 /// and the side menu.
@@ -76,16 +77,7 @@ class _AppShellState extends State<AppShell> {
     if (_rescheduling) return;
     _rescheduling = true;
     try {
-      final scope = AppScope.of(context);
-      if (!scope.reminders.supported || !await scope.reminders.isEnabled()) {
-        return;
-      }
-      final now = scope.today();
-      final upcoming = await scope.repository.shifts(
-        from: now,
-        to: now.add(const Duration(days: 14)),
-      );
-      await scope.reminders.schedule(upcoming, now: now);
+      await AppScope.of(context).rescheduleReminders();
     } catch (_) {
       // Offline: keep the reminders already scheduled.
     } finally {
@@ -253,25 +245,25 @@ class _AppDrawer extends StatelessWidget {
             ),
             item(
               Icons.home_outlined,
-              'Home',
+              context.tr('Home'),
               () => onTab(0),
               selected: current == 0,
             ),
             item(
               Icons.calendar_month_outlined,
-              'Duty & roster',
+              context.tr('Duty & roster'),
               () => onTab(1),
               selected: current == 1,
             ),
             item(
               Icons.bar_chart_rounded,
-              'Salary analytics',
+              context.tr('Salary analytics'),
               () => onTab(2),
               selected: current == 2,
             ),
             item(
               Icons.person_outline_rounded,
-              'Profile & settings',
+              context.tr('Profile & settings'),
               () => onTab(3),
               selected: current == 3,
             ),
@@ -282,7 +274,7 @@ class _AppDrawer extends StatelessWidget {
             item(Icons.document_scanner_outlined, 'Scan roster', onScan),
             item(
               Icons.edit_calendar_outlined,
-              'Enter roster manually',
+              context.tr('Enter roster manually'),
               onManual,
             ),
             const Spacer(),

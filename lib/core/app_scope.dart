@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../data/models.dart';
 import '../data/repository.dart';
+import 'app_settings.dart';
 import 'device_prefs.dart';
 import 'reminders.dart';
 import 'social_sign_in.dart';
@@ -121,6 +122,7 @@ class AppScope extends InheritedWidget {
     required this.social,
     required this.reminders,
     required this.prefs,
+    required this.settings,
     required super.child,
   });
 
@@ -140,6 +142,9 @@ class AppScope extends InheritedWidget {
   /// Per-device memory: welcome seen, last sign-in id.
   final DevicePrefs prefs;
 
+  /// Language, clock and notification preferences.
+  final AppSettings settings;
+
   static AppScope of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<AppScope>();
     assert(scope != null, 'AppScope missing above $context');
@@ -149,4 +154,18 @@ class AppScope extends InheritedWidget {
   @override
   bool updateShouldNotify(AppScope old) =>
       repository != old.repository || auth != old.auth || sync != old.sync;
+}
+
+extension ReminderSync on AppScope {
+  /// Re-plans shift reminders for the next two weeks with the chosen lead time.
+  /// A no-op when reminders are off or unsupported.
+  Future<void> rescheduleReminders() async {
+    if (!reminders.supported || !await reminders.isEnabled()) return;
+    final now = today();
+    final upcoming = await repository.shifts(
+      from: now,
+      to: now.add(const Duration(days: 14)),
+    );
+    await reminders.schedule(upcoming, now: now, lead: settings.reminderLead);
+  }
 }

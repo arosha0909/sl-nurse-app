@@ -7,6 +7,7 @@ import '../../../core/widgets/metric_pill.dart';
 import '../../../core/widgets/pastel_card.dart';
 import '../../onboarding/progressive_prompts.dart';
 import '../dashboard_vm.dart';
+import '../../../core/i18n/i18n.dart';
 
 /// Lavender hero: predicted monthly salary, weekly earnings wave and OT stats.
 class SalaryHeroCard extends StatelessWidget {
@@ -83,7 +84,7 @@ class SalaryHeroCard extends StatelessWidget {
               Flexible(
                 child: Text(
                   forecast.isBasic
-                      ? 'Based on your roster'
+                      ? context.tr('Based on your roster')
                       : '${forecast.confidencePercent}% forecast confidence',
                   style: text.bodySmall,
                   maxLines: 1,
@@ -113,7 +114,7 @@ class SalaryHeroCard extends StatelessWidget {
               Expanded(
                 child: MetricPill(
                   icon: Icons.timer_outlined,
-                  label: 'Completed OT',
+                  label: context.tr('Completed OT'),
                   value: '${Fmt.hours(data.completedOtHours)} hrs',
                   accent: AppColors.lavenderDeep,
                 ),
@@ -122,7 +123,7 @@ class SalaryHeroCard extends StatelessWidget {
               Expanded(
                 child: MetricPill(
                   icon: Icons.trending_up_rounded,
-                  label: 'Avg. Daily OT',
+                  label: context.tr('Avg. Daily OT'),
                   value: '${Fmt.hours(data.avgDailyOtHours)} hrs',
                   accent: AppColors.mintDeep,
                 ),

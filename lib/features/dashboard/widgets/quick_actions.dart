@@ -7,6 +7,7 @@ import '../../../core/widgets/async_view.dart';
 import '../../../core/widgets/common.dart';
 import '../../../core/widgets/pastel_card.dart';
 import '../../../data/models.dart';
+import '../../../core/i18n/i18n.dart';
 
 /// Two quick-action cards side by side; stacked on narrow screens.
 class QuickActionsGrid extends StatelessWidget {
@@ -82,7 +83,7 @@ class _RosterCard extends StatelessWidget {
             iconColor: AppColors.peachDeep,
           ),
           const SizedBox(height: 12),
-          Text('Monthly Roster', style: text.titleMedium),
+          Text(context.tr('Monthly Roster'), style: text.titleMedium),
           const SizedBox(height: 2),
           Text('Import next month\'s duties', style: text.bodySmall),
           // Pin buttons to the bottom when side by side. A Spacer would break the
@@ -97,7 +98,7 @@ class _RosterCard extends StatelessWidget {
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
               ),
-              child: const FittedBox(child: Text('Scan Image (OCR)')),
+              child: FittedBox(child: Text(context.tr('Scan Image (OCR)'))),
             ),
           ),
           const SizedBox(height: 8),
@@ -108,7 +109,7 @@ class _RosterCard extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
               ),
-              child: const FittedBox(child: Text('Manual Input')),
+              child: FittedBox(child: Text(context.tr('Manual Input'))),
             ),
           ),
         ],
@@ -199,9 +200,13 @@ class _LeaveOtTrackerCardState extends State<_LeaveOtTrackerCard> {
       scope.sync.changed();
       if (!mounted) return;
       context.showMessage(
-        on ? '${t.label} saved for today' : '${t.label} removed',
+        on
+            ? context.tr('{item} saved for today', {
+                'item': context.tr(t.label),
+              })
+            : context.tr('{item} removed', {'item': context.tr(t.label)}),
         action: SnackBarAction(
-          label: 'Undo',
+          label: context.tr('Undo'),
           textColor: AppColors.lavender,
           onPressed: () async {
             await scope.repository.updateShift(s.id, undo);
@@ -236,16 +241,18 @@ class _LeaveOtTrackerCardState extends State<_LeaveOtTrackerCard> {
             iconColor: AppColors.mintDeep,
           ),
           const SizedBox(height: 12),
-          Text('Leave & OT Tracker', style: text.titleMedium),
+          Text(context.tr('Leave & OT Tracker'), style: text.titleMedium),
           const SizedBox(height: 2),
           Text(
-            workDay ? 'Quick log for today' : 'No duty today to log',
+            workDay
+                ? context.tr('Quick log for today')
+                : context.tr('No duty today to log'),
             style: text.bodySmall,
           ),
           const SizedBox(height: 14),
           for (final t in _Toggle.values) ...[
             _TogglePill(
-              label: t.label,
+              label: context.tr(t.label),
               icon: t.icon,
               selected: workDay && _isOn(t, s),
               busy: _busy == t,

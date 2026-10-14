@@ -7,6 +7,7 @@ import '../../core/widgets/async_view.dart';
 import '../../core/widgets/pastel_card.dart';
 import '../../data/models.dart';
 import '../onboarding/progressive_prompts.dart';
+import '../../core/i18n/i18n.dart';
 
 /// Runs a check-in / check-out / OT action for [shift] with feedback, used by the
 /// dashboard and the shift sheet so both behave the same:
@@ -27,7 +28,9 @@ Future<bool> runDutyAction(
         final started = await repo.startDuty(shift.id);
         // A missing alert must never block the check-in itself.
         try {
-          await scope.reminders.scheduleOtTransition(started);
+          if (scope.settings.otAlerts) {
+            await scope.reminders.scheduleOtTransition(started);
+          }
         } catch (_) {}
       case ShiftAction.checkOut || ShiftAction.endOt:
         summary = (await repo.endDuty(shift.id)).summary;
@@ -37,7 +40,7 @@ Future<bool> runDutyAction(
       case ShiftAction.switchToOt:
         await repo.updateShift(shift.id, ShiftUpdate(action: action));
     }
-  }, success: _successMessage(shift, action));
+  }, success: _successMessage(context, shift, action));
   if (!ok) return false;
 
   scope.sync.changed();
@@ -51,12 +54,19 @@ Future<bool> runDutyAction(
   return true;
 }
 
-String? _successMessage(Shift shift, ShiftAction action) => switch (action) {
+String? _successMessage(
+  BuildContext context,
+  Shift shift,
+  ShiftAction action,
+) => switch (action) {
   ShiftAction.checkIn =>
     shift.hasAutoOt
-        ? 'Duty started. OT begins automatically after ${Fmt.hours(shift.standardHours)} hrs'
-        : 'Duty started. Have a good shift!',
-  ShiftAction.switchToOt => 'Main shift signed out. OT started',
+        ? context.tr(
+            'Duty started. OT begins automatically after {hours} hrs',
+            {'hours': Fmt.hours(shift.standardHours)},
+          )
+        : context.tr('Duty started. Have a good shift!'),
+  ShiftAction.switchToOt => context.tr('Main shift signed out. OT started'),
   // The summary sheet says it all.
   ShiftAction.checkOut || ShiftAction.endOt => null,
 };
@@ -109,7 +119,10 @@ class DutySummarySheet extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Duty completed', style: text.titleLarge),
+                        Text(
+                          context.tr('Duty completed'),
+                          style: text.titleLarge,
+                        ),
                         Text(
                           '${s.code} · ${Fmt.time(s.checkIn)} – ${Fmt.time(s.checkOut)}${nextDay ? ' (+1)' : ''}',
                           style: text.bodyMedium,
@@ -124,7 +137,7 @@ class DutySummarySheet extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _HoursTile(
-                      label: 'Main Shift',
+                      label: context.tr('Main Shift'),
                       hours: s.mainHours,
                       color: AppColors.mint,
                       ink: AppColors.mintDeep,
@@ -133,7 +146,7 @@ class DutySummarySheet extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _HoursTile(
-                      label: 'Logged OT',
+                      label: context.tr('Logged OT'),
                       hours: s.otHours,
                       color: AppColors.peach,
                       ink: AppColors.peachDeep,
@@ -163,8 +176,10 @@ class DutySummarySheet extends StatelessWidget {
                     Expanded(
                       child: Text(
                         s.nightAllowanceApplicable
-                            ? 'Night allowance applied (10 PM – 6 AM)'
-                            : 'No night allowance on this duty',
+                            ? context.tr(
+                                'Night allowance applied (10 PM – 6 AM)',
+                              )
+                            : context.tr('No night allowance on this duty'),
                         style: text.bodyMedium,
                       ),
                     ),
@@ -172,15 +187,15 @@ class DutySummarySheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              _PayRow(label: 'OT pay', value: Fmt.lkr(s.otPay)),
+              _PayRow(label: context.tr('OT pay'), value: Fmt.lkr(s.otPay)),
               if (s.nightAllowanceApplicable)
                 _PayRow(
-                  label: 'Night allowance',
+                  label: context.tr('Night allowance'),
                   value: Fmt.lkr(s.nightAllowance),
                 ),
               const Divider(height: 20),
               _PayRow(
-                label: 'Earned on this duty',
+                label: context.tr('Earned on this duty'),
                 value: Fmt.lkr(s.totalPay),
                 bold: true,
               ),
@@ -192,7 +207,7 @@ class DutySummarySheet extends StatelessWidget {
               const SizedBox(height: 18),
               FilledButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Done'),
+                child: Text(context.tr('Done')),
               ),
             ],
           ),

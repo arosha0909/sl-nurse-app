@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/metric_pill.dart';
 import '../../../core/widgets/pastel_card.dart';
 import '../duty_vm.dart';
+import '../../../core/i18n/i18n.dart';
 
 /// Peach summary of leave balances and allowances.
 class LeaveSummaryCard extends StatelessWidget {
@@ -21,7 +22,10 @@ class LeaveSummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Leave & Allowance Summary', style: text.titleMedium),
+          Text(
+            context.tr('Leave & Allowance Summary'),
+            style: text.titleMedium,
+          ),
           const SizedBox(height: 14),
           for (final leave in summary.leave) ...[
             _LeaveBar(leave: leave),
@@ -32,7 +36,7 @@ class LeaveSummaryCard extends StatelessWidget {
               Expanded(
                 child: MetricPill(
                   icon: Icons.nightlight_round,
-                  label: 'Night allowance',
+                  label: context.tr('Night allowance'),
                   value: Fmt.lkr(summary.nightAllowanceEarned),
                   accent: AppColors.peachDeep,
                 ),
@@ -41,7 +45,7 @@ class LeaveSummaryCard extends StatelessWidget {
               Expanded(
                 child: MetricPill(
                   icon: Icons.money_off_rounded,
-                  label: 'No-pay days',
+                  label: context.tr('No-pay days'),
                   value: Fmt.hours(summary.noPayDays),
                   accent: AppColors.peachDeep,
                 ),

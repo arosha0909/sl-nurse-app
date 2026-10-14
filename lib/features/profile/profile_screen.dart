@@ -10,7 +10,9 @@ import '../../core/widgets/async_view.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/pastel_card.dart';
 import '../../core/widgets/text_prompt_dialog.dart';
+import '../../core/i18n/i18n.dart';
 import '../../data/models.dart';
+import '../settings/app_settings_screen.dart';
 
 class _ProfileData {
   const _ProfileData(this.user, this.config);
@@ -51,15 +53,29 @@ class ProfileScreen extends StatelessWidget {
                 AppSpacing.dockClearance,
               ),
               children: [
-                Text('Profile & Settings', style: text.headlineSmall),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        context.tr('Profile & Settings'),
+                        style: text.headlineSmall,
+                      ),
+                    ),
+                    CircleIconButton(
+                      icon: Icons.settings_outlined,
+                      tooltip: context.tr('App settings'),
+                      onPressed: () => AppSettingsScreen.open(context),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 18),
                 _Identity(user: data.user),
                 const SizedBox(height: AppSpacing.gap),
                 _PaySettings(user: data.user, config: data.config),
                 const SizedBox(height: AppSpacing.gap),
                 _AmountList(
-                  title: 'Monthly allowances',
-                  hint: 'COLA, interim, uniform…',
+                  title: context.tr('Monthly allowances'),
+                  hint: context.tr('COLA, interim, uniform…'),
                   color: AppColors.mint,
                   accent: AppColors.mintDeep,
                   items: data.config.allowances,
@@ -70,8 +86,8 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.gap),
                 _AmountList(
-                  title: 'Monthly deductions',
-                  hint: 'W&OP, union fee, loan…',
+                  title: context.tr('Monthly deductions'),
+                  hint: context.tr('W&OP, union fee, loan…'),
                   color: AppColors.peach,
                   accent: AppColors.peachDeep,
                   items: data.config.deductions,
@@ -80,18 +96,16 @@ class ProfileScreen extends StatelessWidget {
                     data.config.copyWith(deductions: items),
                   ),
                 ),
-                const SizedBox(height: AppSpacing.gap),
-                const _RemindersCard(),
                 const SizedBox(height: AppSpacing.sectionGap),
                 OutlinedButton.icon(
                   onPressed: () => _confirmSignOut(context),
                   icon: const Icon(Icons.logout_rounded, size: 18),
-                  label: const Text('Sign out'),
+                  label: Text(context.tr('Sign out')),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   AppConfig.demoMode
-                      ? 'Demo mode · sample data'
+                      ? context.tr('Demo mode · sample data')
                       : 'Connected to ${AppConfig.apiBaseUrl}',
                   textAlign: TextAlign.center,
                   style: text.bodySmall,
@@ -111,7 +125,7 @@ class ProfileScreen extends StatelessWidget {
     final scope = AppScope.of(context);
     final ok = await context.runWithFeedback(
       () => scope.repository.updateSalaryConfig(config),
-      success: 'Salary settings saved',
+      success: context.tr('Salary settings saved'),
     );
     if (ok) scope.sync.changed();
   }
@@ -120,18 +134,18 @@ class ProfileScreen extends StatelessWidget {
     final yes = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Sign out?'),
+        title: Text(context.tr('Sign out?')),
         content: const Text(
           'You\'ll need your email and password to sign back in.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sign out'),
+            child: Text(context.tr('Sign out')),
           ),
         ],
       ),
@@ -230,28 +244,31 @@ class _Identity extends StatelessWidget {
           const SizedBox(height: 12),
           _SettingRow(
             icon: Icons.person_outline_rounded,
-            label: 'Full name',
+            label: context.tr('Full name'),
             value: user.fullName,
             onTap: () async {
               final v = await _editText(
                 context,
-                title: 'Full name',
+                title: context.tr('Full name'),
                 initial: user.fullName,
-                validate: (v) => v.length < 2 ? 'Enter your name' : null,
+                validate: (v) =>
+                    v.length < 2 ? context.tr('Enter your name') : null,
               );
               if (v != null && context.mounted) {
-                await _updateProfile(context, {'fullName': v}, 'Name updated');
+                await _updateProfile(context, {
+                  'fullName': v,
+                }, context.tr('Name updated'));
               }
             },
           ),
           _SettingRow(
             icon: Icons.phone_outlined,
-            label: 'Phone',
+            label: context.tr('Phone'),
             value: user.phone,
             onTap: () async {
               final v = await _editText(
                 context,
-                title: 'Phone',
+                title: context.tr('Phone'),
                 initial: user.phone,
                 keyboard: TextInputType.phone,
                 validate: (v) =>
@@ -262,24 +279,28 @@ class _Identity extends StatelessWidget {
                     : 'Enter a Sri Lankan number, e.g. 077 123 4567',
               );
               if (v != null && context.mounted) {
-                await _updateProfile(context, {'phone': v}, 'Phone updated');
+                await _updateProfile(context, {
+                  'phone': v,
+                }, context.tr('Phone updated'));
               }
             },
           ),
           _SettingRow(
             icon: Icons.local_hospital_outlined,
-            label: 'Hospital / ward',
-            value: user.hospitalOrWard.isEmpty ? 'Add' : user.hospitalOrWard,
+            label: context.tr('Hospital / ward'),
+            value: user.hospitalOrWard.isEmpty
+                ? context.tr('Add')
+                : user.hospitalOrWard,
             onTap: () async {
               final v = await _editText(
                 context,
-                title: 'Hospital / ward',
+                title: context.tr('Hospital / ward'),
                 initial: user.hospitalOrWard,
               );
               if (v != null && context.mounted) {
                 await _updateProfile(context, {
                   'hospitalOrWard': v,
-                }, 'Ward updated');
+                }, context.tr('Ward updated'));
               }
             },
           ),
@@ -327,42 +348,47 @@ class _PaySettings extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Pay settings', style: text.titleMedium),
+          Text(context.tr('Pay settings'), style: text.titleMedium),
           if (user.salaryIsEstimate)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                'Using a typical salary estimate until you add your basic salary.',
+                context.tr(
+                  'Using a typical salary estimate until you add your basic salary.',
+                ),
                 style: text.bodySmall?.copyWith(color: AppColors.peachDeep),
               ),
             ),
           const SizedBox(height: 6),
           _SettingRow(
             icon: Icons.account_balance_wallet_outlined,
-            label: 'Basic salary',
+            label: context.tr('Basic salary'),
             value: Fmt.lkr(user.baseSalary),
-            onTap: () =>
-                editMoney('baseSalary', 'Basic salary', user.baseSalary),
+            onTap: () => editMoney(
+              'baseSalary',
+              context.tr('Basic salary'),
+              user.baseSalary,
+            ),
           ),
           _SettingRow(
             icon: Icons.nightlight_outlined,
-            label: 'Night allowance / shift',
+            label: context.tr('Night allowance / shift'),
             value: Fmt.lkr(user.defaultNightAllowance),
             onTap: () => editMoney(
               'defaultNightAllowance',
-              'Night allowance',
+              context.tr('Night allowance'),
               user.defaultNightAllowance,
             ),
           ),
           _SettingRow(
             icon: Icons.more_time_rounded,
-            label: 'OT hourly rate',
+            label: context.tr('OT hourly rate'),
             value: user.defaultOtHourlyRate > 0
                 ? Fmt.lkr(user.defaultOtHourlyRate)
                 : 'Auto · ${Fmt.lkr(derivedRate)}',
             onTap: () => editMoney(
               'defaultOtHourlyRate',
-              'OT hourly rate',
+              context.tr('OT hourly rate'),
               user.defaultOtHourlyRate,
               helper: 'Leave 0 to use basic ÷ 240 × multiplier',
             ),
@@ -379,14 +405,14 @@ class _PaySettings extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'OT multiplier',
+                  context.tr('OT multiplier'),
                   style: text.bodyMedium?.copyWith(
                     color: AppColors.textPrimary,
                   ),
                 ),
               ),
               IconButton(
-                tooltip: 'Lower multiplier',
+                tooltip: context.tr('Lower multiplier'),
                 onPressed: config.otRateMultiplier <= 1
                     ? null
                     : () => ProfileScreen._saveConfig(
@@ -399,7 +425,7 @@ class _PaySettings extends StatelessWidget {
               ),
               Text('${config.otRateMultiplier}×', style: text.titleSmall),
               IconButton(
-                tooltip: 'Raise multiplier',
+                tooltip: context.tr('Raise multiplier'),
                 onPressed: config.otRateMultiplier >= 3
                     ? null
                     : () => ProfileScreen._saveConfig(
@@ -525,7 +551,8 @@ class _AmountList extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          if (items.isEmpty) Text('None yet', style: text.bodySmall),
+          if (items.isEmpty)
+            Text(context.tr('None yet'), style: text.bodySmall),
           for (var i = 0; i < items.length; i++)
             InkWell(
               onTap: () => _edit(context, index: i),
@@ -556,7 +583,7 @@ class _AmountList extends StatelessWidget {
           TextButton.icon(
             onPressed: () => _edit(context),
             icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('Add'),
+            label: Text(context.tr('Add')),
           ),
         ],
       ),
@@ -593,7 +620,9 @@ class _AmountDialogState extends State<_AmountDialog> {
   Widget build(BuildContext context) {
     final existing = widget.existing;
     return AlertDialog(
-      title: Text(existing == null ? 'Add item' : 'Edit item'),
+      title: Text(
+        existing == null ? context.tr('Add item') : context.tr('Edit item'),
+      ),
       content: Form(
         key: _formKey,
         child: Column(
@@ -603,12 +632,12 @@ class _AmountDialogState extends State<_AmountDialog> {
               controller: _name,
               autofocus: existing == null,
               decoration: InputDecoration(
-                labelText: 'Name',
+                labelText: context.tr('Name'),
                 hintText: widget.hint,
                 fillColor: AppColors.surface,
               ),
               validator: (v) =>
-                  (v ?? '').trim().isEmpty ? 'Enter a name' : null,
+                  (v ?? '').trim().isEmpty ? context.tr('Enter a name') : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -619,8 +648,8 @@ class _AmountDialogState extends State<_AmountDialog> {
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
               ],
-              decoration: const InputDecoration(
-                labelText: 'Monthly amount (LKR)',
+              decoration: InputDecoration(
+                labelText: context.tr('Monthly amount (LKR)'),
                 fillColor: AppColors.surface,
               ),
               validator: (v) => _validMoney((v ?? '').trim()),
@@ -633,11 +662,11 @@ class _AmountDialogState extends State<_AmountDialog> {
           TextButton(
             onPressed: () => Navigator.pop(context, 'delete'),
             style: TextButton.styleFrom(foregroundColor: Colors.red.shade400),
-            child: const Text('Delete'),
+            child: Text(context.tr('Delete')),
           ),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(context.tr('Cancel')),
         ),
         FilledButton(
           onPressed: () {
@@ -651,76 +680,9 @@ class _AmountDialogState extends State<_AmountDialog> {
               );
             }
           },
-          child: const Text('Save'),
+          child: Text(context.tr('Save')),
         ),
       ],
-    );
-  }
-}
-
-/// Shift reminders on/off (local notifications on this device).
-class _RemindersCard extends StatefulWidget {
-  const _RemindersCard();
-
-  @override
-  State<_RemindersCard> createState() => _RemindersCardState();
-}
-
-class _RemindersCardState extends State<_RemindersCard> {
-  bool? _enabled;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    AppScope.of(context).reminders.isEnabled().then((v) {
-      if (mounted) setState(() => _enabled = v);
-    });
-  }
-
-  Future<void> _toggle(bool on) async {
-    final scope = AppScope.of(context);
-    if (on) {
-      final granted = await scope.reminders.enable();
-      if (granted) {
-        final now = scope.today();
-        await scope.reminders.schedule(
-          await scope.repository.shifts(
-            from: now,
-            to: now.add(const Duration(days: 14)),
-          ),
-          now: now,
-        );
-      } else if (mounted) {
-        context.showMessage(
-          'Notifications are blocked for this app. Allow them in your phone settings.',
-        );
-      }
-      if (mounted) setState(() => _enabled = granted);
-    } else {
-      await scope.reminders.disable();
-      if (mounted) setState(() => _enabled = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final reminders = AppScope.of(context).reminders;
-    if (!reminders.supported) return const SizedBox.shrink();
-    return PastelCard(
-      color: AppColors.sky,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      child: SwitchListTile(
-        value: _enabled ?? false,
-        onChanged: _enabled == null ? null : _toggle,
-        secondary: const Icon(
-          Icons.notifications_active_outlined,
-          color: AppColors.skyDeep,
-        ),
-        title: const Text('Shift reminders'),
-        subtitle: const Text(
-          'A notification 1 hour before each rostered shift',
-        ),
-      ),
     );
   }
 }

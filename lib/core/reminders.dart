@@ -19,8 +19,12 @@ abstract interface class ReminderService {
   Future<bool> enable();
   Future<void> disable();
 
-  /// Replaces all scheduled reminders with one per upcoming work shift.
-  Future<void> schedule(List<Shift> upcoming, {required DateTime now});
+  /// Replaces all scheduled reminders with one per upcoming work shift, [lead] before it.
+  Future<void> schedule(
+    List<Shift> upcoming, {
+    required DateTime now,
+    Duration lead = reminderLead,
+  });
 
   /// Whether the one-time "turn on reminders?" prompt has been shown on this device.
   Future<bool> wasOffered();
@@ -44,20 +48,28 @@ DateTime? otTransitionAt(Shift shift, DateTime now) {
   return at != null && at.isAfter(now) ? at : null;
 }
 
-/// How long before a shift starts the reminder fires.
+/// How long before a shift starts the reminder fires, unless changed in App Settings.
 const reminderLead = Duration(minutes: 60);
+
+/// "30 min", "1 hour", "2 hours"
+String leadLabel(Duration lead) => lead.inMinutes < 60
+    ? '${lead.inMinutes} min'
+    : lead.inMinutes == 60
+    ? '1 hour'
+    : '${lead.inMinutes ~/ 60} hours';
 
 /// Which shifts get a reminder, and when. Pure, so it is unit-tested.
 List<({Shift shift, DateTime at})> plannedReminders(
   List<Shift> shifts,
-  DateTime now,
-) =>
+  DateTime now, [
+  Duration lead = reminderLead,
+]) =>
     [
         for (final s in shifts)
           if (s.type != ShiftType.off &&
               !s.isLeave &&
               s.status == ShiftStatus.scheduled)
-            (shift: s, at: s.type.window(s.date).start.subtract(reminderLead)),
+            (shift: s, at: s.type.window(s.date).start.subtract(lead)),
       ].where((r) => r.at.isAfter(now)).toList()
       ..sort((a, b) => a.at.compareTo(b.at));
 
@@ -147,7 +159,11 @@ class LocalReminderService implements ReminderService {
   }
 
   @override
-  Future<void> schedule(List<Shift> upcoming, {required DateTime now}) async {
+  Future<void> schedule(
+    List<Shift> upcoming, {
+    required DateTime now,
+    Duration lead = reminderLead,
+  }) async {
     if (!supported || !await isEnabled()) return;
     await _init();
     // Replace shift reminders only; an OT-transition alert for a duty in progress stays.
@@ -155,11 +171,11 @@ class LocalReminderService implements ReminderService {
       if (p.id != _otTransitionId) await _plugin.cancel(id: p.id);
     }
     // iOS keeps at most 64 pending notifications; two weeks of shifts is well below that.
-    for (final r in plannedReminders(upcoming, now).take(40)) {
+    for (final r in plannedReminders(upcoming, now, lead).take(40)) {
       final start = r.shift.type.window(r.shift.date).start;
       await _plugin.zonedSchedule(
         id: r.shift.id.hashCode & 0x7fffffff,
-        title: '${r.shift.type.label} in 1 hour',
+        title: '${r.shift.type.label} in ${leadLabel(lead)}',
         body:
             'Starts at ${Fmt.time(start)}${r.shift.otHours > 0 ? ' · +${Fmt.hours(r.shift.otHours)}h OT planned' : ''}',
         scheduledDate: tz.TZDateTime.from(r.at, tz.local),
@@ -247,8 +263,12 @@ class MemoryReminderService implements ReminderService {
   }
 
   @override
-  Future<void> schedule(List<Shift> upcoming, {required DateTime now}) async {
-    if (enabled) scheduled = plannedReminders(upcoming, now);
+  Future<void> schedule(
+    List<Shift> upcoming, {
+    required DateTime now,
+    Duration lead = reminderLead,
+  }) async {
+    if (enabled) scheduled = plannedReminders(upcoming, now, lead);
   }
 
   @override

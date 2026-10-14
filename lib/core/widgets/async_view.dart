@@ -5,6 +5,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import 'common.dart';
 import 'pastel_card.dart';
+import '../../core/i18n/i18n.dart';
 
 /// Loads data with [load], shows a skeleton while waiting and a retry card on error,
 /// and reloads automatically whenever [DataSync] reports a change.
@@ -134,7 +135,7 @@ class ErrorCard extends StatelessWidget {
             FilledButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: const Text('Try again'),
+              label: Text(context.tr('Try again')),
             ),
           ],
         ),
@@ -169,7 +170,7 @@ class _SkeletonListState extends State<SkeletonList>
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'Loading',
+      label: context.tr('Loading'),
       child: SafeArea(
         // Placeholders taller than the screen are clipped, not overflowed.
         child: SingleChildScrollView(

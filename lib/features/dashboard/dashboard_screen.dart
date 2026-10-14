@@ -16,6 +16,7 @@ import 'widgets/next_shift_reminder.dart';
 import 'widgets/quick_actions.dart';
 import 'widgets/salary_hero_card.dart';
 import 'widgets/today_shift_card.dart';
+import '../../core/i18n/i18n.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({
@@ -92,8 +93,8 @@ class DashboardScreen extends StatelessWidget {
                     title: "Today's Shift",
                     actionIcon: Icons.edit_outlined,
                     actionLabel: data.today == null
-                        ? 'Add shift'
-                        : 'Edit shift',
+                        ? context.tr('Add shift')
+                        : context.tr('Edit shift'),
                     onAction: () => data.today == null
                         ? showAddShift(context, dayOf(now))
                         : showShiftActions(context, data.today!),
@@ -116,7 +117,7 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.sectionGap),
-                  const SectionHeader(title: 'Quick Actions'),
+                  SectionHeader(title: context.tr('Quick Actions')),
                   const SizedBox(height: 8),
                   QuickActionsGrid(
                     today: data.today,

@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/common.dart';
 import '../../../core/widgets/pastel_card.dart';
 import '../../../data/models.dart';
+import '../../../core/i18n/i18n.dart';
 
 /// Soft blue reminder for the next rostered shift.
 class NextShiftReminder extends StatelessWidget {
@@ -28,7 +29,7 @@ class NextShiftReminder extends StatelessWidget {
       DateTime(now.year, now.month, now.day + 1),
     );
     final when = tomorrow
-        ? 'Tomorrow'
+        ? context.tr('Tomorrow')
         : '${Fmt.weekday(shift.date)} ${shift.date.day}';
 
     return PastelCard(
@@ -50,7 +51,7 @@ class NextShiftReminder extends StatelessWidget {
                 Text('Up next · $when', style: text.bodySmall),
                 const SizedBox(height: 2),
                 Text(
-                  '${shift.type.label} · ${Fmt.time(start)}',
+                  '${context.tr(shift.type.label)} · ${Fmt.time(start)}',
                   style: text.titleSmall,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

@@ -2,7 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:flutter_localizations/flutter_localizations.dart';
+
 import 'core/app_scope.dart';
+import 'core/app_settings.dart';
+import 'core/i18n/i18n.dart';
 import 'core/config.dart';
 import 'core/device_prefs.dart';
 import 'core/network/api_client.dart';
@@ -10,6 +14,7 @@ import 'core/network/token_store.dart';
 import 'core/reminders.dart';
 import 'core/social_sign_in.dart';
 import 'core/theme/app_colors.dart';
+import 'core/widgets/app_logo.dart';
 import 'core/theme/app_theme.dart';
 import 'data/api_repository.dart';
 import 'data/mock_repository.dart';
@@ -99,6 +104,7 @@ class NurseCompanionApp extends StatefulWidget {
 class _NurseCompanionAppState extends State<NurseCompanionApp> {
   final _sync = DataSync();
   final _navigator = GlobalKey<NavigatorState>();
+  late final _settings = AppSettings(widget.prefs);
 
   @override
   void initState() {
@@ -109,6 +115,7 @@ class _NurseCompanionAppState extends State<NurseCompanionApp> {
   @override
   void dispose() {
     _sync.dispose();
+    _settings.dispose();
     super.dispose();
   }
 
@@ -122,16 +129,33 @@ class _NurseCompanionAppState extends State<NurseCompanionApp> {
       social: widget.social,
       reminders: widget.reminders,
       prefs: widget.prefs,
-      child: MaterialApp(
-        title: 'Nurse Companion',
-        debugShowCheckedModeBanner: false,
-        navigatorKey: _navigator,
-        theme: AppTheme.light(),
-        home: AuthGate(
-          auth: widget.auth,
-          prefs: widget.prefs,
-          navigator: _navigator,
-          initialTab: widget.initialTab,
+      settings: _settings,
+      // Language and clock changes apply to every screen at once.
+      child: ListenableBuilder(
+        listenable: _settings,
+        builder: (context, _) => MaterialApp(
+          title: 'Nurse Companion',
+          debugShowCheckedModeBanner: false,
+          navigatorKey: _navigator,
+          theme: AppTheme.light(),
+          locale: _settings.language.locale,
+          supportedLocales: [for (final l in AppLanguage.values) l.locale],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          builder: (context, child) => AppStrings(
+            language: _settings.language,
+            child: MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(alwaysUse24HourFormat: _settings.use24h),
+              child: child!,
+            ),
+          ),
+          home: AuthGate(
+            auth: widget.auth,
+            prefs: widget.prefs,
+            navigator: _navigator,
+            initialTab: widget.initialTab,
+          ),
         ),
       ),
     );
@@ -209,22 +233,34 @@ class _Splash extends StatelessWidget {
   const _Splash();
 
   @override
+  // Same charcoal and logo as the Android launch screen, so the hand-off is seamless.
   Widget build(BuildContext context) => Scaffold(
+    backgroundColor: LogoColors.charcoal,
     body: Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.health_and_safety_rounded,
-            size: 64,
-            color: AppColors.lavenderDeep,
-          ),
-          const SizedBox(height: 12),
+          const AppLogo(size: 200, style: LogoStyle.character),
           Text(
             'Nurse Companion',
             style: Theme.of(
               context,
-            ).textTheme.titleMedium?.copyWith(color: AppColors.lavenderDeep),
+            ).textTheme.titleLarge?.copyWith(color: Colors.white),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            context.tr('Your companion\nfor every shift').replaceAll('\n', ' '),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: LogoColors.cyan.withValues(alpha: 0.75),
+            ),
+          ),
+          const SizedBox(height: 28),
+          SizedBox.square(
+            dimension: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.4,
+              color: LogoColors.peach.withValues(alpha: 0.9),
+            ),
           ),
         ],
       ),

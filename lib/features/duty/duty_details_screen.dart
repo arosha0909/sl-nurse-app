@@ -15,6 +15,7 @@ import 'widgets/date_selector.dart';
 import 'widgets/duty_stat_widgets.dart';
 import 'widgets/leave_summary_card.dart';
 import 'widgets/weekly_hours_card.dart';
+import '../../core/i18n/i18n.dart';
 
 class DutyDetailsScreen extends StatefulWidget {
   const DutyDetailsScreen({super.key, required this.onBack});
@@ -77,19 +78,19 @@ class _DutyDetailsScreenState extends State<DutyDetailsScreen> {
       children: [
         CircleIconButton(
           icon: Icons.arrow_back_rounded,
-          tooltip: 'Back',
+          tooltip: context.tr('Back'),
           onPressed: widget.onBack,
         ),
         Expanded(
           child: Text(
-            'Duty & Roster Details',
+            context.tr('Duty & Roster Details'),
             textAlign: TextAlign.center,
             style: text.titleLarge,
           ),
         ),
         CircleIconButton(
           icon: Icons.edit_calendar_outlined,
-          tooltip: 'Edit roster',
+          tooltip: context.tr('Edit roster'),
           onPressed: () => ManualRosterScreen.open(context),
         ),
       ],
@@ -101,41 +102,59 @@ class _DutyDetailsScreenState extends State<DutyDetailsScreen> {
         child: AsyncView<DutyData>(
           load: () => _load(scope),
           skeleton: const SkeletonList(heights: [52, 44, 70, 200, 260]),
-          builder: (context, data, reload) => RefreshIndicator(
-            onRefresh: reload,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenPadding,
-                12,
-                AppSpacing.screenPadding,
-                AppSpacing.dockClearance,
+          // Header and date bar stay pinned; the day's details scroll beneath them.
+          builder: (context, data, reload) => Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenPadding,
+                  12,
+                  AppSpacing.screenPadding,
+                  12,
+                ),
+                child: Column(
+                  children: [
+                    header,
+                    const SizedBox(height: 18),
+                    DateSelector(
+                      dates: _dates,
+                      selected: _selected,
+                      onChanged: (d) => setState(() => _selected = d),
+                    ),
+                  ],
+                ),
               ),
-              children: [
-                header,
-                const SizedBox(height: 18),
-                DateSelector(
-                  dates: _dates,
-                  selected: _selected,
-                  onChanged: (d) => setState(() => _selected = d),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: reload,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenPadding,
+                      4,
+                      AppSpacing.screenPadding,
+                      AppSpacing.dockClearance,
+                    ),
+                    children: [
+                      _SelectedDay(
+                        date: _selected,
+                        today: _today,
+                        shifts: data.on(_selected),
+                      ),
+                      const SizedBox(height: AppSpacing.gap),
+                      DutyStatWidgets(summary: data),
+                      const SizedBox(height: AppSpacing.gap),
+                      WeeklyHoursCard(
+                        week: data.weekOf(_selected),
+                        selected: _selected,
+                      ),
+                      const SizedBox(height: AppSpacing.gap),
+                      LeaveSummaryCard(summary: data),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-                _SelectedDay(
-                  date: _selected,
-                  today: _today,
-                  shifts: data.on(_selected),
-                ),
-                const SizedBox(height: AppSpacing.gap),
-                DutyStatWidgets(summary: data),
-                const SizedBox(height: AppSpacing.gap),
-                WeeklyHoursCard(
-                  week: data.weekOf(_selected),
-                  selected: _selected,
-                ),
-                const SizedBox(height: AppSpacing.gap),
-                LeaveSummaryCard(summary: data),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -160,8 +179,8 @@ class _SelectedDay extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final upcoming = date.isAfter(today);
     final label = sameDay(date, today)
-        ? 'Today'
-        : (upcoming ? 'Upcoming' : 'Past');
+        ? context.tr('Today')
+        : (upcoming ? context.tr('Upcoming') : context.tr('Past'));
 
     if (shifts.isEmpty) {
       return PastelCard(
@@ -176,14 +195,14 @@ class _SelectedDay extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('$label · ${Fmt.weekday(date)}', style: text.bodySmall),
-                  Text('Nothing rostered', style: text.titleSmall),
+                  Text(context.tr('Nothing rostered'), style: text.titleSmall),
                 ],
               ),
             ),
             FilledButton.icon(
               onPressed: () => showAddShift(context, date),
               icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('Add'),
+              label: Text(context.tr('Add')),
             ),
           ],
         ),
@@ -208,12 +227,14 @@ class _SelectedDay extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '$label · ${Fmt.weekday(s.date)} · ${_status(s)}',
+                        '$label · ${Fmt.weekday(s.date)} · ${context.tr(_status(s))}',
                         style: text.bodySmall,
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        s.isLeave ? s.leaveType.label : s.type.label,
+                        context.tr(
+                          s.isLeave ? s.leaveType.label : s.type.label,
+                        ),
                         style: text.titleSmall,
                       ),
                       if (!s.isLeave)

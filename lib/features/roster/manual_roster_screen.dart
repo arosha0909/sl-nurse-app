@@ -10,6 +10,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/pastel_card.dart';
 import '../../data/models.dart';
 import '../onboarding/progressive_prompts.dart';
+import 'manual_roster_help.dart';
 import 'roster_widgets.dart';
 
 /// Type a month's roster by hand: one code per day, with a rota quick-fill.
@@ -61,7 +62,14 @@ class _ManualRosterScreenState extends State<ManualRosterScreen> {
                   ),
                   child: Column(
                     children: [
-                      const PageHeader(title: 'Manual Roster'),
+                      PageHeader(
+                        title: 'Manual Roster',
+                        trailing: CircleIconButton(
+                          icon: Icons.help_outline_rounded,
+                          tooltip: 'How to add your roster',
+                          onPressed: () => showManualRosterHelp(context),
+                        ),
+                      ),
                       const SizedBox(height: 16),
                       MonthSwitcher(
                         month: _month,

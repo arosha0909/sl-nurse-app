@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nurse_companion/core/app_scope.dart';
+import 'package:nurse_companion/core/app_settings.dart';
 import 'package:nurse_companion/core/config.dart';
+import 'package:nurse_companion/core/i18n/i18n.dart';
 import 'package:nurse_companion/core/device_prefs.dart';
 import 'package:nurse_companion/core/reminders.dart';
 import 'package:nurse_companion/core/social_sign_in.dart';
 import 'package:nurse_companion/data/mock_repository.dart';
 import 'package:nurse_companion/data/models.dart';
 import 'package:nurse_companion/features/dashboard/widgets/active_duty_card.dart';
+import 'package:nurse_companion/features/duty/widgets/date_selector.dart';
 import 'package:nurse_companion/main.dart';
 
 /// Phone and tablet sizes. A RenderFlex overflow throws in tests, so pumping
@@ -23,7 +26,12 @@ final now = DateTime(2026, 10, 13, 12, 15);
 
 /// The visible tab's vertical list. IndexedStack keeps every tab mounted,
 /// so the default finder would match several scrollables.
-final visibleList = find.byType(Scrollable).hitTestable().first;
+final visibleList = find
+    .byWidgetPredicate(
+      (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+    )
+    .hitTestable()
+    .first;
 
 /// Services the last [pumpApp] call used, for assertions.
 late MemoryReminderService reminders;
@@ -348,6 +356,109 @@ void main() {
     await tester.tap(find.byTooltip('Back'));
     await settle(tester, const Duration(milliseconds: 600));
     expect(find.text('Hello Nurse Dilani,').hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('manual roster explains itself from the help icon', (
+    tester,
+  ) async {
+    await pumpApp(tester, size: const Size(320, 640));
+    await scrollTo(tester, find.text('Manual Input'));
+    await revealAndTap(tester, find.text('Manual Input'));
+    await settle(tester);
+    await tester.tap(find.byTooltip('How to add your roster'));
+    await settle(tester, const Duration(milliseconds: 800));
+    expect(find.text('How to add your roster'), findsOneWidget);
+    expect(find.text('3. Fill a whole month fast'), findsOneWidget);
+    final sheet = find.byType(Scrollable).last;
+    await tester.scrollUntilVisible(
+      find.text('Got it'),
+      200,
+      scrollable: sheet,
+    );
+    expect(find.textContaining('24-hour duty'), findsOneWidget);
+    await tester.tap(find.text('Got it'));
+    await settle(tester, const Duration(milliseconds: 800));
+    expect(find.text('How to add your roster'), findsNothing);
+  });
+
+  for (final lang in ['si', 'ta']) {
+    testWidgets('every tab fits a small phone in $lang', (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final repo = MockRepository(today: now);
+      final prefs = MemoryDevicePrefs(welcomeSeen: true)
+        ..values['language'] = lang;
+      await tester.pumpWidget(
+        NurseCompanionApp(
+          repository: repo,
+          auth: AuthController(MockAuthService(repo, signedIn: true)),
+          social: FakeSocialSignIn(),
+          reminders: MemoryReminderService(),
+          prefs: prefs,
+          today: () => now,
+        ),
+      );
+      await settle(tester);
+      // A RenderFlex overflow fails the test, so visiting each tab checks the layout.
+      final language = AppLanguage.parse(lang);
+      for (final tab in ['Roster', 'Salary Analytics', 'Profile', 'Home']) {
+        await tester.tap(find.byTooltip(translate(language, tab)));
+        await settle(tester);
+      }
+      await tester.tap(find.byTooltip(translate(language, 'Profile')));
+      await settle(tester);
+      await tester.tap(find.byTooltip(translate(language, 'App settings')));
+      await settle(tester);
+      expect(find.text(translate(language, 'App Settings')), findsOneWidget);
+    });
+  }
+
+  testWidgets('gear opens App Settings; language and clock apply everywhere', (
+    tester,
+  ) async {
+    await pumpApp(tester, tab: 3);
+    await tester.tap(find.byTooltip('App settings'));
+    await settle(tester);
+    expect(find.text('App Settings'), findsOneWidget);
+    expect(find.text('Shift reminders'), findsOneWidget);
+
+    await tester.tap(find.text('සිංහල'));
+    await settle(tester);
+    expect(find.text('යෙදුම් සැකසුම්'), findsOneWidget); // App Settings
+    expect(find.text('භාෂාව'), findsOneWidget); // Language
+
+    await tester.tap(find.text('தமிழ்'));
+    await settle(tester);
+    expect(find.text('மொழி'), findsOneWidget);
+
+    await tester.tap(find.text('English'));
+    await settle(tester);
+    await scrollTo(tester, find.text('24-hour clock'));
+    expect(find.text('Times show as 07:30 PM'), findsOneWidget);
+    await tester.tap(find.byType(Switch).last);
+    await settle(tester);
+    expect(find.text('Times show as 19:30'), findsOneWidget);
+    await tester.tap(find.byType(Switch).last);
+    await settle(tester);
+  });
+
+  testWidgets('swiping the dates selects the day under the fixed centre', (
+    tester,
+  ) async {
+    await pumpApp(tester, tab: 1);
+    expect(find.text('13 Oct 2026'), findsOneWidget);
+    final centre = tester.getCenter(find.text('13 Oct 2026'));
+    // Two days' worth to the left, no fling.
+    await tester.timedDrag(
+      find.byType(DateSelector),
+      const Offset(-92, 0),
+      const Duration(milliseconds: 600),
+    );
+    await settle(tester, const Duration(milliseconds: 800));
+    expect(find.text('15 Oct 2026'), findsOneWidget);
+    // The capsule itself never moved.
+    expect(tester.getCenter(find.text('15 Oct 2026')), centre);
   });
 
   testWidgets('selecting a future date shows that day as upcoming', (

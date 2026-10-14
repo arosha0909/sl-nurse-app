@@ -11,6 +11,10 @@ abstract interface class DevicePrefs {
 
   Future<void> markWelcomeSeen();
   Future<void> rememberLoginId(String id);
+
+  /// App settings (see AppSettings); null when never set.
+  String? read(String key);
+  Future<void> write(String key, String value);
 }
 
 class SharedDevicePrefs implements DevicePrefs {
@@ -48,6 +52,13 @@ class SharedDevicePrefs implements DevicePrefs {
       await _prefs.setString(_loginIdKey, id);
     }
   }
+
+  @override
+  String? read(String key) => _prefs.getString('settings.$key');
+
+  @override
+  Future<void> write(String key, String value) =>
+      _prefs.setString('settings.$key', value);
 }
 
 /// Tests, demo mode and devices without storage.
@@ -67,4 +78,12 @@ class MemoryDevicePrefs implements DevicePrefs {
   Future<void> rememberLoginId(String id) async {
     if (id.isNotEmpty) lastLoginId = id;
   }
+
+  final values = <String, String>{};
+
+  @override
+  String? read(String key) => values[key];
+
+  @override
+  Future<void> write(String key, String value) async => values[key] = value;
 }

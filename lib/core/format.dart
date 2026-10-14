@@ -39,8 +39,14 @@ abstract final class Fmt {
   static String weekday(DateTime d) => _weekdays[d.weekday - 1];
   static String month(int m) => _months[m - 1];
 
-  /// 13:05 → "01:05 PM"
+  /// Set from the app settings: "13:05" instead of "01:05 PM".
+  static bool use24h = false;
+
+  /// 13:05 → "01:05 PM" (or "13:05" on a 24-hour clock)
   static String time(DateTime t) {
+    if (use24h) {
+      return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    }
     final h = t.hour % 12 == 0 ? 12 : t.hour % 12;
     return '${h.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} ${t.hour < 12 ? 'AM' : 'PM'}';
   }

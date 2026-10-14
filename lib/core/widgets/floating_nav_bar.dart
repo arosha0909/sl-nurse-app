@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../i18n/i18n.dart';
 import '../theme/app_colors.dart';
 
 class NavItem {
@@ -99,9 +100,9 @@ class _NavButton extends StatelessWidget {
     return Semantics(
       button: true,
       selected: active,
-      label: item.label,
+      label: context.tr(item.label),
       child: Tooltip(
-        message: item.label,
+        message: context.tr(item.label),
         child: InkResponse(
           onTap: onTap,
           radius: 30,

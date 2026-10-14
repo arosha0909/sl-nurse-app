@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/common.dart';
 import '../../../data/models.dart';
+import '../../../core/i18n/i18n.dart';
 
 class DashboardHeader extends StatelessWidget {
   const DashboardHeader({
@@ -34,12 +35,12 @@ class DashboardHeader extends StatelessWidget {
               child: InkWell(
                 onTap: onMenu,
                 borderRadius: BorderRadius.circular(14),
-                child: const SizedBox.square(
+                child: SizedBox.square(
                   dimension: 44,
                   child: Icon(
                     Icons.notes_rounded,
                     color: AppColors.textPrimary,
-                    semanticLabel: 'Menu',
+                    semanticLabel: context.tr('Menu'),
                   ),
                 ),
               ),
@@ -47,7 +48,7 @@ class DashboardHeader extends StatelessWidget {
             const Spacer(),
             Semantics(
               button: true,
-              label: 'Profile',
+              label: context.tr('Profile'),
               child: GestureDetector(
                 onTap: onAvatar,
                 child: UserAvatar(name: user.fullName),
@@ -58,15 +59,15 @@ class DashboardHeader extends StatelessWidget {
         const SizedBox(height: 22),
         Text(
           isNewUser
-              ? 'Welcome, Nurse ${user.firstName}!'
-              : 'Hello Nurse ${user.firstName},',
+              ? context.tr('Welcome, Nurse {name}!', {'name': user.firstName})
+              : context.tr('Hello Nurse {name},', {'name': user.firstName}),
           style: text.headlineSmall,
         ),
         const SizedBox(height: 4),
         Text(
           isNewUser
-              ? "Let's simplify your duty life."
-              : 'Have a nice shift today! 🩺',
+              ? context.tr("Let's simplify your duty life.")
+              : context.tr('Have a nice shift today! 🩺'),
           style: text.bodyLarge?.copyWith(
             color: AppColors.textPrimary.withValues(alpha: 0.85),
           ),
