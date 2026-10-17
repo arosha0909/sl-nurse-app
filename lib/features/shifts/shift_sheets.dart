@@ -125,7 +125,10 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
   Widget build(BuildContext context) {
     final s = widget.shift;
     final working =
-        s.type != ShiftType.off && !s.isLeave && s.status != ShiftStatus.missed;
+        s.type != ShiftType.off &&
+        !s.isLeave &&
+        !s.isSwapped &&
+        s.status != ShiftStatus.missed;
     final canCheckIn = working && s.checkInTime == null;
     final canSignOut =
         working &&
@@ -147,6 +150,30 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
       subtitle:
           '${Fmt.weekday(s.date)}, ${Fmt.dayMonthYear(s.date)} · ${s.type.timeRange}',
       children: [
+        if (s.isSwapped)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: PastelCard(
+              color: AppColors.peach,
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.swap_horiz_rounded,
+                    color: AppColors.peachDeep,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      context.tr('Given to {name} in a duty swap', {
+                        'name': s.swappedWith ?? '—',
+                      }),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         if (working && notStarted) ...[
           _Label(context.tr('Skipped this duty? Mark leave in one tap')),
           Row(
@@ -177,6 +204,12 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
               ],
             ],
           ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _busy ? null : _swap,
+            icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+            label: Text(context.tr('Swap with a colleague')),
+          ),
           const SizedBox(height: 16),
         ],
         if (s.type.isLongDuty &&
@@ -192,7 +225,9 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
                     ShiftUpdate(standardHours: h),
                     h >= s.type.spanHours
                         ? context.tr('Whole duty counted as main shift')
-                        : 'OT starts after ${Fmt.hours(h)} hrs',
+                        : context.tr('OT starts after {hours} hrs', {
+                            'hours': Fmt.hours(h),
+                          }),
                   ),
           ),
           const SizedBox(height: 16),
@@ -231,7 +266,29 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
           ),
           const SizedBox(height: 16),
         ],
-        if (!s.isLeave) ...[
+        if (working)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: s.publicHoliday,
+              onChanged: _busy
+                  ? null
+                  : (v) => _update(
+                      ShiftUpdate(publicHoliday: v),
+                      v
+                          ? context.tr('Marked as public holiday duty')
+                          : context.tr('Public holiday removed'),
+                    ),
+              title: Text(context.tr('Public holiday duty')),
+              subtitle: Text(
+                s.isSunday
+                    ? context.tr('Sunday duty is counted automatically')
+                    : context.tr('Earns the holiday rate set in Pay rules'),
+              ),
+            ),
+          ),
+        if (!s.isLeave && !s.isSwapped) ...[
           _Label(context.tr('OT hours')),
           PastelCard(
             color: AppColors.lavender,
@@ -352,6 +409,23 @@ class _ShiftActionsSheetState extends State<ShiftActionsSheet> {
     final navigator = Navigator.of(context);
     navigator.pop(true);
     await runDutyAction(navigator.context, widget.shift, action);
+  }
+
+  Future<void> _swap() async {
+    final result = await showDialog<_SwapRequest>(
+      context: context,
+      builder: (_) => _SwapDialog(date: widget.shift.date),
+    );
+    if (result == null || !mounted) return;
+    await _run(
+      () => AppScope.of(context).repository.swapShift(
+        widget.shift.id,
+        colleague: result.colleague,
+        takeDate: result.takeDate,
+        takeType: result.takeType,
+      ),
+      context.tr('Duty swapped with {name}', {'name': result.colleague}),
+    );
   }
 
   Future<void> _confirmDelete() async {
@@ -499,6 +573,33 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
   /// Long duties carry their OT built in; standard shifts take extra OT by hand.
   bool get _autoOt => _type.spanHours > _mainHours;
 
+  /// A night or 24-hour duty the day before ends at 07:00 on this date.
+  bool _afterNight = false;
+  bool _checkedNight = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_checkedNight) return;
+    _checkedNight = true;
+    final before = widget.date.subtract(const Duration(days: 1));
+    AppScope.of(context).repository
+        .shifts(from: before, to: before)
+        .then((list) {
+          final night = list.any(
+            (s) =>
+                (s.type == ShiftType.night || s.type == ShiftType.twentyFour) &&
+                !s.isLeave &&
+                !s.isSwapped,
+          );
+          if (mounted && night) setState(() => _afterNight = true);
+        })
+        .catchError((_) {});
+  }
+
+  /// Duties that start at 07:00, right when the night before ends.
+  bool get _noRest => _afterNight && _type.startHour == 7;
+
   Future<void> _save() async {
     setState(() => _busy = true);
     final scope = AppScope.of(context);
@@ -601,6 +702,30 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
             ],
           ),
         ],
+        if (_noRest)
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: PastelCard(
+              color: AppColors.peach,
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  const Icon(Icons.bedtime_rounded, color: AppColors.peachDeep),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      context.tr(
+                        'Your night duty ends at 07:00 this morning. This duty starts straight after it, with no sleep.',
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         const SizedBox(height: 22),
         FilledButton(
           onPressed: _busy ? null : _save,
@@ -613,6 +738,121 @@ class _AddShiftSheetState extends State<AddShiftSheet> {
                   ),
                 )
               : Text(context.tr('Add shift')),
+        ),
+      ],
+    );
+  }
+}
+
+typedef _SwapRequest = ({
+  String colleague,
+  DateTime? takeDate,
+  ShiftType? takeType,
+});
+
+/// Who takes this duty, and which of their duties (if any) the nurse works instead.
+class _SwapDialog extends StatefulWidget {
+  const _SwapDialog({required this.date});
+
+  final DateTime date;
+
+  @override
+  State<_SwapDialog> createState() => _SwapDialogState();
+}
+
+class _SwapDialogState extends State<_SwapDialog> {
+  final _name = TextEditingController();
+  bool _takeReturn = true;
+  late DateTime _takeDate = widget.date.add(const Duration(days: 1));
+  ShiftType _takeType = ShiftType.morning;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _takeDate,
+      firstDate: widget.date.subtract(const Duration(days: 60)),
+      lastDate: widget.date.add(const Duration(days: 90)),
+    );
+    if (picked != null) setState(() => _takeDate = picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final valid = _name.text.trim().isNotEmpty;
+    return AlertDialog(
+      title: Text(context.tr('Swap with a colleague')),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _name,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                labelText: context.tr('Colleague\'s name'),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _takeReturn,
+              onChanged: (v) => setState(() => _takeReturn = v),
+              title: Text(context.tr('I take one of their duties')),
+            ),
+            if (_takeReturn) ...[
+              OutlinedButton.icon(
+                onPressed: _pickDate,
+                icon: const Icon(Icons.event_rounded, size: 18),
+                label: Text(
+                  '${Fmt.weekday(_takeDate)}, ${Fmt.dayMonthYear(_takeDate)}',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final t in ShiftType.values.where(
+                    (t) => t != ShiftType.off,
+                  ))
+                    ChoiceChip(
+                      label: Text(t.code),
+                      tooltip: context.tr(t.label),
+                      selected: _takeType == t,
+                      onSelected: (_) => setState(() => _takeType = t),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(context.tr(_takeType.label), style: text.bodySmall),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(context.tr('Cancel')),
+        ),
+        FilledButton(
+          onPressed: valid
+              ? () => Navigator.pop<_SwapRequest>(context, (
+                  colleague: _name.text.trim(),
+                  takeDate: _takeReturn ? _takeDate : null,
+                  takeType: _takeReturn ? _takeType : null,
+                ))
+              : null,
+          child: Text(context.tr('Swap')),
         ),
       ],
     );

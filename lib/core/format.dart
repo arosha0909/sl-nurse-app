@@ -16,6 +16,10 @@ abstract final class Fmt {
   ];
   static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+  /// Set by the app to the chosen language (month and day names, "in 45 min").
+  static String Function(String english)? translateWord;
+  static String _w(String english) => translateWord?.call(english) ?? english;
+
   /// 148500 → "148,500"
   static String thousands(num value) {
     final digits = value.round().abs().toString();
@@ -34,10 +38,11 @@ abstract final class Fmt {
       h == h.roundToDouble() ? h.toStringAsFixed(0) : h.toStringAsFixed(1);
 
   static String dayMonthYear(DateTime d) =>
-      '${d.day} ${_months[d.month - 1]} ${d.year}';
-  static String monthYear(DateTime d) => '${_months[d.month - 1]} ${d.year}';
-  static String weekday(DateTime d) => _weekdays[d.weekday - 1];
-  static String month(int m) => _months[m - 1];
+      '${d.day} ${_w(_months[d.month - 1])} ${d.year}';
+  static String monthYear(DateTime d) =>
+      '${_w(_months[d.month - 1])} ${d.year}';
+  static String weekday(DateTime d) => _w(_weekdays[d.weekday - 1]);
+  static String month(int m) => _w(_months[m - 1]);
 
   /// Set from the app settings: "13:05" instead of "01:05 PM".
   static bool use24h = false;
@@ -55,9 +60,11 @@ abstract final class Fmt {
   static String relative(DateTime t, DateTime now) {
     final diff = t.difference(now);
     final mins = diff.inMinutes.abs();
+    String minutes(int n) => _w('{n} min').replaceAll('{n}', '$n');
     final text = mins < 60
-        ? '$mins min'
-        : '${mins ~/ 60} h${mins % 60 == 0 ? '' : ' ${mins % 60} min'}';
-    return diff.isNegative ? '$text ago' : 'in $text';
+        ? minutes(mins)
+        : '${_w('{n} h').replaceAll('{n}', '${mins ~/ 60}')}'
+              '${mins % 60 == 0 ? '' : ' ${minutes(mins % 60)}'}';
+    return _w(diff.isNegative ? '{t} ago' : 'in {t}').replaceAll('{t}', text);
   }
 }

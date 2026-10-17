@@ -188,8 +188,8 @@ const tamilStrings = <String, String>{
   // App settings
   'App Settings': 'செயலி அமைப்புகள்',
   'Language': 'மொழி',
-  'Some screens are still in English while translation is completed.':
-      'மொழிபெயர்ப்பு முடியும் வரை சில திரைகள் ஆங்கிலத்தில் இருக்கும்.',
+  'Notes and error messages from the server are shown in English.':
+      'சேவையகத்திலிருந்து வரும் குறிப்புகளும் பிழைச் செய்திகளும் ஆங்கிலத்தில் காட்டப்படும்.',
   'Notifications': 'அறிவிப்புகள்',
   'Shift reminders': 'பணி நினைவூட்டல்கள்',
   'A notification before each rostered shift':

@@ -4,6 +4,7 @@ import '../../core/format.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/common.dart';
 import '../../data/models.dart';
+import '../../core/i18n/i18n.dart';
 
 /// What a nurse can put on a roster day, using Sri Lankan ward codes. Leave and absence
 /// sit in the Morning slot, as the API expects.
@@ -25,7 +26,8 @@ enum RosterCode {
     ShiftType.morning,
     LeaveType.publicHoliday,
   ),
-  absent('A', 'Absent', ShiftType.morning, LeaveType.none);
+  absent('A', 'Absent', ShiftType.morning, LeaveType.none),
+  swapped('SW', 'Swapped to a colleague', ShiftType.morning, LeaveType.none);
 
   const RosterCode(this.short, this.label, this.type, this.leave);
   final String short;
@@ -36,7 +38,8 @@ enum RosterCode {
   bool get isLeave => leave != LeaveType.none;
 
   /// Not a working duty: leave, absence or a day off.
-  bool get isRest => isLeave || this == absent || this == off;
+  bool get isRest =>
+      isLeave || this == absent || this == off || this == swapped;
 
   static RosterCode of(
     ShiftType type,
@@ -44,9 +47,10 @@ enum RosterCode {
     ShiftStatus status = ShiftStatus.scheduled,
   ]) {
     if (status == ShiftStatus.missed) return RosterCode.absent;
+    if (status == ShiftStatus.swapped) return RosterCode.swapped;
     if (leave == LeaveType.none) {
       return values.firstWhere(
-        (c) => c.type == type && !c.isLeave && c != absent,
+        (c) => c.type == type && !c.isLeave && c != absent && c != swapped,
       );
     }
     return values.firstWhere(
@@ -64,6 +68,7 @@ enum RosterCode {
     RosterCode.day || RosterCode.shortDuty => AppColors.peach,
     RosterCode.off => AppColors.surfaceMuted,
     RosterCode.absent => AppColors.surfaceMuted,
+    RosterCode.swapped => AppColors.surfaceMuted,
     _ => AppColors.mint,
   };
 
@@ -76,6 +81,8 @@ enum RosterCode {
             ? ShiftStatus.leave
             : this == absent
             ? ShiftStatus.missed
+            : this == swapped
+            ? ShiftStatus.swapped
             : (status ?? ShiftStatus.scheduled),
         otHours: isRest ? 0 : otHours,
       );
@@ -97,7 +104,7 @@ class RosterCodeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<Object>(
-      tooltip: 'Change shift',
+      tooltip: context.tr('Change shift'),
       position: PopupMenuPosition.under,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       onSelected: (v) => onChanged(v is RosterCode ? v : null),
@@ -109,12 +116,12 @@ class RosterCodeButton extends StatelessWidget {
               children: [
                 _Badge(code: c),
                 const SizedBox(width: 12),
-                Text(c.label),
+                Text(context.tr(c.label)),
               ],
             ),
           ),
         if (allowClear)
-          const PopupMenuItem(value: 'clear', child: Text('Clear day')),
+          PopupMenuItem(value: 'clear', child: Text(context.tr('Clear day'))),
       ],
       child: _Badge(code: code),
     );
@@ -177,7 +184,7 @@ class MonthSwitcher extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            tooltip: 'Previous month',
+            tooltip: context.tr('Previous month'),
             visualDensity: VisualDensity.compact,
             onPressed: min != null && prev.isBefore(min!)
                 ? null
@@ -189,7 +196,7 @@ class MonthSwitcher extends StatelessWidget {
             style: Theme.of(context).textTheme.titleSmall,
           ),
           IconButton(
-            tooltip: 'Next month',
+            tooltip: context.tr('Next month'),
             visualDensity: VisualDensity.compact,
             onPressed: max != null && next.isAfter(max!)
                 ? null
@@ -215,7 +222,7 @@ class PageHeader extends StatelessWidget {
       children: [
         CircleIconButton(
           icon: Icons.arrow_back_rounded,
-          tooltip: 'Back',
+          tooltip: context.tr('Back'),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         Expanded(

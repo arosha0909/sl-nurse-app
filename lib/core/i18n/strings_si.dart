@@ -187,8 +187,8 @@ const sinhalaStrings = <String, String>{
   // App settings
   'App Settings': 'යෙදුම් සැකසුම්',
   'Language': 'භාෂාව',
-  'Some screens are still in English while translation is completed.':
-      'පරිවර්තනය අවසන් වන තුරු සමහර තිර තවමත් ඉංග්‍රීසියෙන් පෙන්වයි.',
+  'Notes and error messages from the server are shown in English.':
+      'සේවාදායකයෙන් ලැබෙන සටහන් සහ දෝෂ පණිවිඩ ඉංග්‍රීසියෙන් පෙන්වයි.',
   'Notifications': 'දැනුම්දීම්',
   'Shift reminders': 'මුර සිහිකැඳවීම්',
   'A notification before each rostered shift':

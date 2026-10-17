@@ -30,7 +30,11 @@ class AppSettings extends ChangeNotifier {
       use24h = _prefs.read(_clockKey) == '24',
       reminderLeadMinutes =
           int.tryParse(_prefs.read(_leadKey) ?? '') ?? defaultReminderLead,
-      otAlerts = _prefs.read(_otAlertKey) != 'off' {
+      otAlerts = _prefs.read(_otAlertKey) != 'off',
+      forgotStartAlert = _prefs.read('forgotStart') != 'off',
+      endReminders = _prefs.read('endReminders') != 'off',
+      daySummary = _prefs.read('daySummary') != 'off',
+      payDetailsReminder = _prefs.read('payReminder') != 'off' {
     Fmt.use24h = use24h;
   }
 
@@ -40,7 +44,7 @@ class AppSettings extends ChangeNotifier {
   static const _otAlertKey = 'otAlerts';
 
   static const defaultReminderLead = 60;
-  static const reminderLeadOptions = [30, 60, 120];
+  static const reminderLeadOptions = [5, 10, 15, 30, 60, 120];
 
   final DevicePrefs _prefs;
 
@@ -54,6 +58,18 @@ class AppSettings extends ChangeNotifier {
 
   /// "Switched to OT" notification on long duties.
   bool otAlerts;
+
+  /// Nudge when a rostered duty has started but Start duty wasn't tapped.
+  bool forgotStartAlert;
+
+  /// Reminders before the main shift and the OT end.
+  bool endReminders;
+
+  /// After the day's last duty: what was earned and the OT covered.
+  bool daySummary;
+
+  /// Occasional reminder to fill in missing pay details (at most once a week).
+  bool payDetailsReminder;
 
   Duration get reminderLead => Duration(minutes: reminderLeadMinutes);
 
@@ -80,5 +96,20 @@ class AppSettings extends ChangeNotifier {
     otAlerts = value;
     notifyListeners();
     await _prefs.write(_otAlertKey, value ? 'on' : 'off');
+  }
+
+  Future<void> setForgotStartAlert(bool value) =>
+      _toggle('forgotStart', value, () => forgotStartAlert = value);
+  Future<void> setEndReminders(bool value) =>
+      _toggle('endReminders', value, () => endReminders = value);
+  Future<void> setDaySummary(bool value) =>
+      _toggle('daySummary', value, () => daySummary = value);
+  Future<void> setPayDetailsReminder(bool value) =>
+      _toggle('payReminder', value, () => payDetailsReminder = value);
+
+  Future<void> _toggle(String key, bool value, VoidCallback apply) async {
+    apply();
+    notifyListeners();
+    await _prefs.write(key, value ? 'on' : 'off');
   }
 }

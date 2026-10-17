@@ -147,7 +147,7 @@ void main() {
 
       testWidgets('welcome', (tester) async {
         await pumpApp(tester, size: entry.value, signedIn: false);
-        expect(find.text('Get Started'), findsOneWidget);
+        expect(find.text('Use email or mobile'), findsOneWidget);
       });
     });
   }
@@ -157,7 +157,7 @@ void main() {
   ) async {
     await pumpApp(tester, signedIn: false);
     // Get Started goes straight to sign-in.
-    await tester.tap(find.text('Get Started'));
+    await tester.tap(find.text('Use email or mobile'));
     await settle(tester);
     expect(find.text('Welcome back'), findsOneWidget);
     await settle(tester);
@@ -387,7 +387,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final repo = MockRepository(today: now);
-      final prefs = MemoryDevicePrefs(welcomeSeen: true)
+      final prefs = MemoryDevicePrefs(welcomeSeen: true, guideSeen: true)
         ..values['language'] = lang;
       await tester.pumpWidget(
         NurseCompanionApp(
@@ -479,7 +479,7 @@ void main() {
       await settle(tester, const Duration(milliseconds: 600));
       await tester.tap(find.text('Sign out'));
       await settle(tester);
-      expect(find.text('Get Started'), findsNothing);
+      expect(find.text('Use email or mobile'), findsNothing);
       expect(find.text('Welcome back'), findsOneWidget);
       expect(find.text('Enter your password to continue.'), findsOneWidget);
       expect(find.text('Not you?'), findsOneWidget);
@@ -496,9 +496,25 @@ void main() {
     },
   );
 
+  testWidgets('Google leads on Get Started and signs in with one tap', (
+    tester,
+  ) async {
+    await pumpApp(tester, signedIn: false);
+    final google = tester.getTopLeft(find.text('Continue with Google'));
+    final email = tester.getTopLeft(find.text('Use email or mobile'));
+    expect(google.dy, lessThan(email.dy)); // Google comes first
+    await tester.tap(find.text('Continue with Google'));
+    await settle(tester);
+    expect(social.requested, [SignInProvider.google]);
+    expect(
+      find.textContaining('Nurse Dilani'),
+      findsOneWidget,
+    ); // on the dashboard
+  });
+
   testWidgets('quick test login signs in with one tap', (tester) async {
     await pumpApp(tester, signedIn: false);
-    await tester.tap(find.text('Get Started'));
+    await tester.tap(find.text('Use email or mobile'));
     await settle(tester);
     expect(find.text('Quick test login'), findsOneWidget);
     expect(find.text('On a 24 h duty now'), findsOneWidget);
@@ -538,7 +554,7 @@ void main() {
       ),
     );
     await settle(tester);
-    expect(find.text('Get Started'), findsNothing);
+    expect(find.text('Use email or mobile'), findsNothing);
     expect(find.text('Welcome back'), findsOneWidget);
     expect(find.text('077 123 4567'), findsOneWidget);
 
@@ -593,7 +609,7 @@ void main() {
 
     testWidgets('Google sign-up is one tap', (tester) async {
       await pumpApp(tester, signedIn: false);
-      await tester.tap(find.text('Get Started'));
+      await tester.tap(find.text('Use email or mobile'));
       await settle(tester);
       await tester.tap(find.text('Continue with Google'));
       await settle(tester);

@@ -12,6 +12,10 @@ abstract interface class DevicePrefs {
   Future<void> markWelcomeSeen();
   Future<void> rememberLoginId(String id);
 
+  /// The first-run app guide has been shown (finished or skipped) on this device.
+  bool get guideSeen;
+  Future<void> markGuideSeen();
+
   /// App settings (see AppSettings); null when never set.
   String? read(String key);
   Future<void> write(String key, String value);
@@ -22,6 +26,7 @@ class SharedDevicePrefs implements DevicePrefs {
 
   static const _welcomeKey = 'device.welcomeSeen';
   static const _loginIdKey = 'device.lastLoginId';
+  static const _guideKey = 'device.guideSeen';
 
   final SharedPreferences _prefs;
 
@@ -54,6 +59,12 @@ class SharedDevicePrefs implements DevicePrefs {
   }
 
   @override
+  bool get guideSeen => _prefs.getBool(_guideKey) ?? false;
+
+  @override
+  Future<void> markGuideSeen() => _prefs.setBool(_guideKey, true);
+
+  @override
   String? read(String key) => _prefs.getString('settings.$key');
 
   @override
@@ -63,7 +74,17 @@ class SharedDevicePrefs implements DevicePrefs {
 
 /// Tests, demo mode and devices without storage.
 class MemoryDevicePrefs implements DevicePrefs {
-  MemoryDevicePrefs({this.welcomeSeen = false, this.lastLoginId = ''});
+  MemoryDevicePrefs({
+    this.welcomeSeen = false,
+    this.lastLoginId = '',
+    this.guideSeen = false,
+  });
+
+  @override
+  bool guideSeen;
+
+  @override
+  Future<void> markGuideSeen() async => guideSeen = true;
 
   @override
   bool welcomeSeen;

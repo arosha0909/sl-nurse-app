@@ -13,6 +13,7 @@ import '../../core/widgets/text_prompt_dialog.dart';
 import '../../core/i18n/i18n.dart';
 import '../../data/models.dart';
 import '../settings/app_settings_screen.dart';
+import 'pay_rules_screen.dart';
 
 class _ProfileData {
   const _ProfileData(this.user, this.config);
@@ -106,7 +107,9 @@ class ProfileScreen extends StatelessWidget {
                 Text(
                   AppConfig.demoMode
                       ? context.tr('Demo mode · sample data')
-                      : 'Connected to ${AppConfig.apiBaseUrl}',
+                      : context.tr('Connected to {server}', {
+                          'server': AppConfig.apiBaseUrl,
+                        }),
                   textAlign: TextAlign.center,
                   style: text.bodySmall,
                 ),
@@ -319,7 +322,8 @@ class _PaySettings extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final derivedRate = user.baseSalary / 240 * config.otRateMultiplier;
+    final derivedRate =
+        user.baseSalary / config.otDivisor * config.otRateMultiplier;
 
     Future<void> editMoney(
       String field,
@@ -385,12 +389,17 @@ class _PaySettings extends StatelessWidget {
             label: context.tr('OT hourly rate'),
             value: user.defaultOtHourlyRate > 0
                 ? Fmt.lkr(user.defaultOtHourlyRate)
-                : 'Auto · ${Fmt.lkr(derivedRate)}',
+                : context.tr('Auto · {amount}', {
+                    'amount': Fmt.lkr(derivedRate),
+                  }),
             onTap: () => editMoney(
               'defaultOtHourlyRate',
               context.tr('OT hourly rate'),
               user.defaultOtHourlyRate,
-              helper: 'Leave 0 to use basic ÷ 240 × multiplier',
+              helper: context.tr(
+                'Leave 0 to use basic ÷ {divisor} × multiplier',
+                {'divisor': Fmt.hours(config.otDivisor)},
+              ),
             ),
           ),
           const SizedBox(height: 4),
@@ -437,6 +446,18 @@ class _PaySettings extends StatelessWidget {
                 icon: const Icon(Icons.add_circle_outline_rounded),
               ),
             ],
+          ),
+          const Divider(height: 18),
+          _SettingRow(
+            icon: Icons.rule_rounded,
+            label: context.tr('Pay rules'),
+            value: context.tr(
+              config.employerType == EmployerType.private
+                  ? 'Private'
+                  : 'Government',
+            ),
+            onTap: () =>
+                PayRulesScreen.open(context, config: config, user: user),
           ),
         ],
       ),

@@ -5,13 +5,14 @@ import '../../core/app_settings.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/i18n/i18n.dart';
-import '../../core/reminders.dart';
+import '../../core/notices.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/background_waves.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/pastel_card.dart';
+import '../guide/app_guide.dart';
 import '../roster/roster_widgets.dart';
 
 /// App version shown in About; keep in step with pubspec.yaml.
@@ -182,7 +183,7 @@ class _LanguagePicker extends StatelessWidget {
         if (settings.language != AppLanguage.english)
           Text(
             context.tr(
-              'Some screens are still in English while translation is completed.',
+              'Notes and error messages from the server are shown in English.',
             ),
             style: text.bodySmall,
           ),
@@ -229,6 +230,17 @@ class _NotificationsState extends State<_Notifications> {
       );
     }
     if (mounted) setState(() => _reminders = granted);
+  }
+
+  /// Saves a setting, then re-plans the duty reminders with it.
+  Future<void> _apply(Future<void> change) async {
+    final scope = AppScope.of(context);
+    await change;
+    try {
+      await scope.rescheduleReminders();
+    } catch (_) {
+      // Offline: applied at the next reschedule.
+    }
   }
 
   Future<void> _setLead(int minutes) async {
@@ -279,7 +291,7 @@ class _NotificationsState extends State<_Notifications> {
                   ChoiceChip(
                     label: Text(
                       context.tr('{time} before', {
-                        'time': context.tr(leadLabel(Duration(minutes: m))),
+                        'time': leadText(Duration(minutes: m), context.tr),
                       }),
                     ),
                     selected: settings.reminderLeadMinutes == m,
@@ -310,6 +322,40 @@ class _NotificationsState extends State<_Notifications> {
             await settings.setOtAlerts(v);
             if (!v) await scope.reminders.cancelOtTransition();
           },
+        ),
+        const SizedBox(height: 10),
+        _SwitchRow(
+          title: context.tr('Forgot to start'),
+          subtitle: context.tr(
+            'Remind me if a duty has started and I haven\'t tapped Start duty',
+          ),
+          value: settings.forgotStartAlert,
+          onChanged: (v) => _apply(settings.setForgotStartAlert(v)),
+        ),
+        const SizedBox(height: 10),
+        _SwitchRow(
+          title: context.tr('Before the main shift and OT end'),
+          subtitle: context.tr('A reminder before each part of the duty ends'),
+          value: settings.endReminders,
+          onChanged: (v) => _apply(settings.setEndReminders(v)),
+        ),
+        const SizedBox(height: 10),
+        _SwitchRow(
+          title: context.tr('Daily summary'),
+          subtitle: context.tr(
+            'After your last duty: hours, OT and what you earned that day',
+          ),
+          value: settings.daySummary,
+          onChanged: (v) => settings.setDaySummary(v),
+        ),
+        const SizedBox(height: 10),
+        _SwitchRow(
+          title: context.tr('Pay details reminder'),
+          subtitle: context.tr(
+            'If your salary or deductions are missing; at most once a week',
+          ),
+          value: settings.payDetailsReminder,
+          onChanged: (v) => settings.setPayDetailsReminder(v),
         ),
       ],
     );
@@ -377,6 +423,12 @@ class _About extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        OutlinedButton.icon(
+          onPressed: () => AppGuide.open(context),
+          icon: const Icon(Icons.menu_book_rounded, size: 18),
+          label: Text(context.tr('App guide')),
+        ),
+        const SizedBox(height: 8),
         row(context.tr('Version'), appVersion),
         row(
           context.tr('Server'),

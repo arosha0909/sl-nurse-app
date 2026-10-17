@@ -60,12 +60,14 @@ class _DutyDetailsScreenState extends State<DutyDetailsScreen> {
         to: _today,
         status: ShiftStatus.leave,
       ),
+      scope.repository.salaryConfig(),
     ]);
     return DutyData.build(
       user: results[0] as UserProfile,
       shifts: results[1] as List<Shift>,
       yearLeave: results[2] as List<Shift>,
       today: _today,
+      entitlements: (results[3] as SalaryConfig).leave,
     );
   }
 
@@ -275,6 +277,7 @@ class _SelectedDay extends StatelessWidget {
     ShiftStatus.completed => 'Completed',
     ShiftStatus.missed => 'Missed',
     ShiftStatus.leave => 'Leave',
+    ShiftStatus.swapped => 'Swapped',
     ShiftStatus.scheduled => s.checkInTime != null ? 'Checked in' : 'Scheduled',
   };
 }

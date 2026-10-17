@@ -80,7 +80,7 @@ class _LeaveBar extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  leave.name,
+                  context.tr(leave.name),
                   style: text.bodyMedium?.copyWith(
                     color: AppColors.textPrimary,
                   ),
@@ -91,8 +91,11 @@ class _LeaveBar extends StatelessWidget {
                   text: Fmt.hours(leave.used),
                   style: text.titleSmall,
                   children: [
+                    // No fixed quota (e.g. sick leave): show what was taken.
                     TextSpan(
-                      text: ' / ${Fmt.hours(leave.entitled)} Days',
+                      text: leave.entitled == 0
+                          ? ' ${context.tr('days taken')}'
+                          : ' / ${Fmt.hours(leave.entitled)} ${context.tr('Days')}',
                       style: text.bodySmall,
                     ),
                   ],

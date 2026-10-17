@@ -11,6 +11,7 @@ import '../../core/widgets/metric_pill.dart';
 import '../../core/widgets/pastel_card.dart';
 import '../../data/models.dart';
 import 'roster_widgets.dart';
+import '../../core/i18n/i18n.dart';
 
 /// Step 2 of the OCR import: check and correct what was read, then save.
 class RosterReviewScreen extends StatefulWidget {
@@ -92,11 +93,11 @@ class _RosterReviewScreenState extends State<RosterReviewScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text(context.tr('Cancel')),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, hours),
-              child: const Text('Set'),
+              child: Text(context.tr('Set')),
             ),
           ],
         ),
@@ -144,7 +145,7 @@ class _RosterReviewScreenState extends State<RosterReviewScreen> {
                   child: ListView(
                     padding: const EdgeInsets.all(AppSpacing.screenPadding),
                     children: [
-                      const PageHeader(title: 'Review Roster'),
+                      PageHeader(title: context.tr('Review Roster')),
                       const SizedBox(height: 18),
                       Row(
                         children: [
@@ -160,9 +161,9 @@ class _RosterReviewScreenState extends State<RosterReviewScreen> {
                           Expanded(
                             child: MetricPill(
                               icon: Icons.fact_check_outlined,
-                              label: 'Needs a look',
+                              label: context.tr('Needs a look'),
                               value: _toCheck == 0
-                                  ? 'All clear'
+                                  ? context.tr('All clear')
                                   : '$_toCheck to check',
                               accent: _toCheck == 0
                                   ? AppColors.mintDeep
@@ -211,7 +212,9 @@ class _RosterReviewScreenState extends State<RosterReviewScreen> {
                       ],
                       const SizedBox(height: AppSpacing.gap),
                       Text(
-                        'Tap a code to change it. Swipe a row away to drop it.',
+                        context.tr(
+                          'Tap a code to change it. Swipe a row away to drop it.',
+                        ),
                         style: text.bodySmall,
                       ),
                       const SizedBox(height: 8),
@@ -219,7 +222,9 @@ class _RosterReviewScreenState extends State<RosterReviewScreen> {
                         PastelCard(
                           elevated: true,
                           child: Text(
-                            'Nothing could be read from this photo. Go back and try a clearer, well-lit shot.',
+                            context.tr(
+                              'Nothing could be read from this photo. Go back and try a clearer, well-lit shot.',
+                            ),
                             style: text.bodyMedium,
                           ),
                         ),
@@ -325,11 +330,13 @@ class _RowTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(code.label, style: text.titleSmall),
+                Text(context.tr(code.label), style: text.titleSmall),
                 Text(
                   row.lowConfidence
-                      ? 'Read as "${row.source}" · please check'
-                      : 'Read as "${row.source}"',
+                      ? context.tr('Read as "{code}" · please check', {
+                          'code': row.source,
+                        })
+                      : context.tr('Read as "{code}"', {'code': row.source}),
                   style: text.bodySmall?.copyWith(
                     color: row.lowConfidence ? AppColors.peachDeep : null,
                   ),
@@ -394,7 +401,7 @@ class _SaveBar extends StatelessWidget {
                 onChanged: onOverwrite,
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: const Text('Replace days I already entered'),
+                title: Text(context.tr('Replace days I already entered')),
               ),
               SizedBox(
                 width: double.infinity,

@@ -1,3 +1,4 @@
+import '../core/config.dart';
 import '../core/network/api_client.dart';
 import 'models.dart';
 import 'repository.dart';
@@ -77,6 +78,41 @@ class ApiRepository implements NurseRepository {
       shift: Shift.fromJson(data['shift'] as Json),
       summary: DutySummary.fromJson(data['summary'] as Json),
     );
+  }
+
+  @override
+  Future<void> swapShift(
+    String shiftId, {
+    required String colleague,
+    DateTime? takeDate,
+    ShiftType? takeType,
+  }) => _api.post(
+    '/shifts/$shiftId/swap',
+    body: {
+      'colleague': colleague,
+      if (takeDate != null && takeType != null) ...{
+        'takeDate': formatDay(takeDate),
+        'takeShiftType': takeType.api,
+      },
+    },
+  );
+
+  @override
+  Future<List<Announcement>> announcements() async {
+    final data = await _api.get('/app/announcements') as Json;
+    return [
+      for (final a in (data['announcements'] as List? ?? const []))
+        Announcement.fromJson(a as Json),
+    ];
+  }
+
+  @override
+  Future<List<SalaryScale>> salaryScales() async {
+    final data = await _api.get('/app/config', auth: false) as Json;
+    return [
+      for (final s in (data['salaryScales'] as List? ?? const []))
+        SalaryScale.fromJson(s as Json),
+    ];
   }
 
   @override
@@ -224,6 +260,8 @@ class ApiAuthService implements AuthService {
     try {
       final data = await _api.get('/app/config', auth: false) as Json;
       final signIn = (data['signIn'] as Json?) ?? const {};
+      final googleId = signIn['googleServerClientId'];
+      if (googleId is String) AppConfig.googleServerClientIdFromApi = googleId;
       return {
         for (final p in SignInProvider.values)
           if (signIn[p.api] == true) p,

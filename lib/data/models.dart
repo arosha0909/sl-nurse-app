@@ -101,7 +101,10 @@ enum ShiftStatus {
   scheduled('Scheduled'),
   completed('Completed'),
   missed('Missed'),
-  leave('Leave');
+  leave('Leave'),
+
+  /// Given to a colleague in a duty swap: not worked, not deducted.
+  swapped('Swapped');
 
   const ShiftStatus(this.api);
   final String api;
@@ -355,6 +358,8 @@ class Shift {
     this._standardHours,
     this.calculatedMainHours,
     bool? nightAllowanceApplicable,
+    this.publicHoliday = false,
+    this.swappedWith,
   }) : _nightAllowance = nightAllowanceApplicable;
 
   factory Shift.fromJson(Json j) => Shift(
@@ -368,6 +373,8 @@ class Shift {
     standardHours: (j['standardHours'] as num?)?.toDouble(),
     calculatedMainHours: (j['calculatedMainHours'] as num?)?.toDouble(),
     nightAllowanceApplicable: j['nightAllowanceApplicable'] as bool?,
+    publicHoliday: j['publicHoliday'] as bool? ?? false,
+    swappedWith: j['swappedWith'] as String?,
     checkInTime: _instant(j['checkInTime']),
     checkOutTime: _instant(j['checkOutTime']),
     otStartTime: _instant(j['otStartTime']),
@@ -394,6 +401,15 @@ class Shift {
 
   /// Main-shift hours actually worked (set by the API at check-out).
   final double? calculatedMainHours;
+
+  /// Worked on a public holiday (Sundays are recognised from the date).
+  final bool publicHoliday;
+
+  /// Colleague in a duty swap: who took this duty, or whose duty this is.
+  final String? swappedWith;
+
+  bool get isSwapped => status == ShiftStatus.swapped;
+  bool get isSunday => date.weekday == DateTime.sunday;
   final double? _standardHours;
   final bool? _nightAllowance;
 
@@ -412,10 +428,12 @@ class Shift {
       ? leaveType.code
       : status == ShiftStatus.missed
       ? 'A'
+      : status == ShiftStatus.swapped
+      ? 'SW'
       : type.code;
 
   bool get isLeave => status == ShiftStatus.leave;
-  bool get isWork => type != ShiftType.off || otHours > 0;
+  bool get isWork => (type != ShiftType.off || otHours > 0) && !isSwapped;
   bool get isWorked => status == ShiftStatus.completed && isWork;
   bool get otInProgress => otStartTime != null && otEndTime == null;
 
@@ -428,7 +446,10 @@ class Shift {
 
   /// Hours on the main shift: real clock times when recorded and plausible.
   double get mainHours {
-    if (isLeave || status == ShiftStatus.missed || type == ShiftType.off) {
+    if (isLeave ||
+        isSwapped ||
+        status == ShiftStatus.missed ||
+        type == ShiftType.off) {
       return 0;
     }
     if (calculatedMainHours != null) return calculatedMainHours!;
@@ -441,7 +462,10 @@ class Shift {
 
   /// Next step of the attendance workflow, or null when the day is settled.
   ShiftAction? get nextAction {
-    if (isLeave || status == ShiftStatus.missed || type == ShiftType.off) {
+    if (isLeave ||
+        isSwapped ||
+        status == ShiftStatus.missed ||
+        type == ShiftType.off) {
       return null;
     }
     if (checkInTime == null) return ShiftAction.checkIn;
@@ -463,6 +487,8 @@ class Shift {
     double? standardHours,
     double? calculatedMainHours,
     bool? nightAllowanceApplicable,
+    bool? publicHoliday,
+    String? swappedWith,
   }) => Shift(
     id: id,
     date: date,
@@ -470,6 +496,8 @@ class Shift {
     standardHours: standardHours ?? _standardHours,
     calculatedMainHours: calculatedMainHours ?? this.calculatedMainHours,
     nightAllowanceApplicable: nightAllowanceApplicable ?? _nightAllowance,
+    publicHoliday: publicHoliday ?? this.publicHoliday,
+    swappedWith: swappedWith ?? this.swappedWith,
     type: type ?? this.type,
     status: status ?? this.status,
     leaveType: leaveType ?? this.leaveType,
@@ -491,12 +519,16 @@ class ShiftDraft {
     this.leaveType = LeaveType.none,
     this.otHours = 0,
     this.standardHours,
+    this.publicHoliday = false,
   });
 
   final DateTime date;
   final ShiftType type;
   final ShiftStatus status;
   final LeaveType leaveType;
+
+  /// Duty on a public holiday (Sundays are recognised automatically).
+  final bool publicHoliday;
 
   /// Extra OT. A long duty's built-in OT is planned by the API from [standardHours].
   final double otHours;
@@ -511,6 +543,7 @@ class ShiftDraft {
     'leaveType': leaveType.api,
     if (otHours > 0) 'otHours': otHours,
     if (standardHours != null) 'standardHours': standardHours,
+    if (publicHoliday) 'publicHoliday': true,
   };
 }
 
@@ -524,6 +557,7 @@ class ShiftUpdate {
     this.leaveType,
     this.otHours,
     this.standardHours,
+    this.publicHoliday,
   });
 
   final ShiftAction? action;
@@ -533,6 +567,7 @@ class ShiftUpdate {
   final LeaveType? leaveType;
   final double? otHours;
   final double? standardHours;
+  final bool? publicHoliday;
 
   Json toJson() => {
     if (action != null) 'action': action!.api,
@@ -542,6 +577,7 @@ class ShiftUpdate {
     if (leaveType != null) 'leaveType': leaveType!.api,
     if (otHours != null) 'otHours': otHours,
     if (standardHours != null) 'standardHours': standardHours,
+    if (publicHoliday != null) 'publicHoliday': publicHoliday,
   };
 }
 
@@ -719,11 +755,103 @@ class NamedAmount {
   Json toJson() => {'name': name, 'amount': amount};
 }
 
+enum EmployerType {
+  government('government'),
+  private('private');
+
+  const EmployerType(this.api);
+  final String api;
+
+  static EmployerType parse(Object? v) => values.firstWhere(
+    (e) => e.api == v,
+    orElse: () => EmployerType.government,
+  );
+}
+
+/// How OT hours are counted: per duty, or from the month's total hours.
+enum OtMode {
+  perShift('perShift'),
+  monthlyHours('monthlyHours');
+
+  const OtMode(this.api);
+  final String api;
+
+  static OtMode parse(Object? v) =>
+      values.firstWhere((e) => e.api == v, orElse: () => OtMode.perShift);
+}
+
+/// Annual leave entitlements in days; 0 = not tracked against a quota.
+class LeaveEntitlements {
+  const LeaveEntitlements({
+    this.casual = 21,
+    this.vacation = 24,
+    this.sick = 0,
+  });
+
+  factory LeaveEntitlements.fromJson(Json? j) => j == null
+      ? const LeaveEntitlements()
+      : LeaveEntitlements(
+          casual: _int(j['casual'] ?? 21),
+          vacation: _int(j['vacation'] ?? 24),
+          sick: _int(j['sick'] ?? 0),
+        );
+
+  final int casual;
+  final int vacation;
+  final int sick;
+
+  Json toJson() => {'casual': casual, 'vacation': vacation, 'sick': sick};
+
+  LeaveEntitlements copyWith({int? casual, int? vacation, int? sick}) =>
+      LeaveEntitlements(
+        casual: casual ?? this.casual,
+        vacation: vacation ?? this.vacation,
+        sick: sick ?? this.sick,
+      );
+}
+
+/// A nursing salary scale from the admin's list (GET /app/config).
+class SalaryScale {
+  const SalaryScale({
+    required this.code,
+    required this.name,
+    required this.initial,
+    required this.increment,
+    required this.steps,
+  });
+
+  factory SalaryScale.fromJson(Json j) => SalaryScale(
+    code: j['code'] as String? ?? '',
+    name: j['name'] as String? ?? '',
+    initial: _num(j['initial']),
+    increment: _num(j['increment']),
+    steps: _int(j['steps']),
+  );
+
+  final String code;
+  final String name;
+  final double initial;
+  final double increment;
+  final int steps;
+
+  /// Basic salary after [step] increments (capped at the top of the scale).
+  double basicAt(int step) => initial + increment * step.clamp(0, steps);
+}
+
 class SalaryConfig {
   const SalaryConfig({
     required this.allowances,
     required this.deductions,
     required this.otRateMultiplier,
+    this.employerType = EmployerType.government,
+    this.otDivisor = 240,
+    this.otMode = OtMode.perShift,
+    this.requiredMonthlyHours = 180,
+    this.holidayRateMultiplier = 0,
+    this.sundayIsHoliday = true,
+    this.leave = const LeaveEntitlements(),
+    this.gradeCode,
+    this.salaryStep,
   });
 
   factory SalaryConfig.fromJson(Json j) => SalaryConfig(
@@ -738,26 +866,81 @@ class SalaryConfig {
     otRateMultiplier: j['otRateMultiplier'] is num
         ? _num(j['otRateMultiplier'])
         : 1.5,
+    employerType: EmployerType.parse(j['employerType']),
+    otDivisor: j['otDivisor'] is num ? _num(j['otDivisor']) : 240,
+    otMode: OtMode.parse(j['otMode']),
+    requiredMonthlyHours: j['requiredMonthlyHours'] is num
+        ? _num(j['requiredMonthlyHours'])
+        : 180,
+    holidayRateMultiplier: _num(j['holidayRateMultiplier']),
+    sundayIsHoliday: j['sundayIsHoliday'] as bool? ?? true,
+    leave: LeaveEntitlements.fromJson(j['leaveEntitlements'] as Json?),
+    gradeCode: j['gradeCode'] as String?,
+    salaryStep: (j['salaryStep'] as num?)?.toInt(),
   );
 
   final List<NamedAmount> allowances;
   final List<NamedAmount> deductions;
   final double otRateMultiplier;
 
+  /// Pay rules: defaults follow common government practice; each one can be changed.
+  final EmployerType employerType;
+
+  /// Monthly basic ÷ this = basic hourly rate (OT and holiday pay).
+  final double otDivisor;
+  final OtMode otMode;
+
+  /// [OtMode.monthlyHours]: duty hours a month before OT starts.
+  final double requiredMonthlyHours;
+
+  /// Extra pay per main-shift hour on Sundays / public holidays, × basic hourly rate. 0 = off.
+  final double holidayRateMultiplier;
+  final bool sundayIsHoliday;
+  final LeaveEntitlements leave;
+  final String? gradeCode;
+  final int? salaryStep;
+
   Json toJson() => {
     'allowances': [for (final a in allowances) a.toJson()],
     'deductions': [for (final d in deductions) d.toJson()],
     'otRateMultiplier': otRateMultiplier,
+    'employerType': employerType.api,
+    'otDivisor': otDivisor,
+    'otMode': otMode.api,
+    'requiredMonthlyHours': requiredMonthlyHours,
+    'holidayRateMultiplier': holidayRateMultiplier,
+    'sundayIsHoliday': sundayIsHoliday,
+    'leaveEntitlements': leave.toJson(),
+    'gradeCode': gradeCode,
+    'salaryStep': salaryStep,
   };
 
   SalaryConfig copyWith({
     List<NamedAmount>? allowances,
     List<NamedAmount>? deductions,
     double? otRateMultiplier,
+    EmployerType? employerType,
+    double? otDivisor,
+    OtMode? otMode,
+    double? requiredMonthlyHours,
+    double? holidayRateMultiplier,
+    bool? sundayIsHoliday,
+    LeaveEntitlements? leave,
+    String? gradeCode,
+    int? salaryStep,
   }) => SalaryConfig(
     allowances: allowances ?? this.allowances,
     deductions: deductions ?? this.deductions,
     otRateMultiplier: otRateMultiplier ?? this.otRateMultiplier,
+    employerType: employerType ?? this.employerType,
+    otDivisor: otDivisor ?? this.otDivisor,
+    otMode: otMode ?? this.otMode,
+    requiredMonthlyHours: requiredMonthlyHours ?? this.requiredMonthlyHours,
+    holidayRateMultiplier: holidayRateMultiplier ?? this.holidayRateMultiplier,
+    sundayIsHoliday: sundayIsHoliday ?? this.sundayIsHoliday,
+    leave: leave ?? this.leave,
+    gradeCode: gradeCode ?? this.gradeCode,
+    salaryStep: salaryStep ?? this.salaryStep,
   );
 }
 
@@ -1102,4 +1285,26 @@ class WorkTrends {
   final Map<String, double> burnoutIndicators;
   final List<String> burnoutReasons;
   final String disclaimer;
+}
+
+/// A message from the Nurse Companion team (GET /app/announcements).
+class Announcement {
+  const Announcement({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.at,
+  });
+
+  factory Announcement.fromJson(Json j) => Announcement(
+    id: j['id'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    body: j['body'] as String? ?? '',
+    at: _instant(j['startsAt']) ?? _instant(j['createdAt']) ?? DateTime.now(),
+  );
+
+  final String id;
+  final String title;
+  final String body;
+  final DateTime at;
 }

@@ -2,7 +2,9 @@ import 'package:flutter/widgets.dart';
 
 import '../app_settings.dart';
 import 'strings_si.dart';
+import 'strings_si_more.dart';
 import 'strings_ta.dart';
+import 'strings_ta_more.dart';
 
 /// Makes the chosen language available to every screen, and rebuilds them when it changes.
 class AppStrings extends InheritedWidget {
@@ -24,6 +26,9 @@ class AppStrings extends InheritedWidget {
 extension Translate on BuildContext {
   String tr(String english, [Map<String, Object?> args = const {}]) =>
       translate(AppStrings.languageOf(this), english, args);
+
+  /// For validators and other optional messages.
+  String? trOrNull(String? english) => english == null ? null : tr(english);
 }
 
 String translate(
@@ -33,8 +38,10 @@ String translate(
 ]) {
   var text = switch (language) {
     AppLanguage.english => english,
-    AppLanguage.sinhala => sinhalaStrings[english] ?? english,
-    AppLanguage.tamil => tamilStrings[english] ?? english,
+    AppLanguage.sinhala =>
+      sinhalaStrings[english] ?? sinhalaStringsMore[english] ?? english,
+    AppLanguage.tamil =>
+      tamilStrings[english] ?? tamilStringsMore[english] ?? english,
   };
   args.forEach((key, value) => text = text.replaceAll('{$key}', '$value'));
   return text;

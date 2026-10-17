@@ -13,6 +13,7 @@ import '../../core/widgets/text_prompt_dialog.dart';
 import 'roster_review_screen.dart';
 import '../onboarding/progressive_prompts.dart';
 import 'roster_widgets.dart';
+import '../../core/i18n/i18n.dart';
 
 /// Step 1 of the OCR import: choose the month and a photo of the roster.
 class RosterScanScreen extends StatefulWidget {
@@ -99,12 +100,12 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
   Future<void> _pasteText() async {
     final text = await TextPromptDialog.show(
       context,
-      const TextPromptDialog(
-        title: 'Paste roster text',
+      TextPromptDialog(
+        title: context.tr('Paste roster text'),
         hint: '01 M\n02 N OT 4\n03 CL\n…',
-        helper: "Text from your phone's text scanner works too",
+        helper: context.tr("Text from your phone's text scanner works too"),
         maxLines: 8,
-        confirmLabel: 'Read',
+        confirmLabel: context.tr('Read'),
       ),
     );
     if (text != null && text.trim().isNotEmpty) await _scan(rawText: text);
@@ -153,12 +154,15 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
                 ListView(
                   padding: const EdgeInsets.all(AppSpacing.screenPadding),
                   children: [
-                    const PageHeader(title: 'Scan Roster'),
+                    PageHeader(title: context.tr('Scan Roster')),
                     const SizedBox(height: 22),
                     Row(
                       children: [
                         Expanded(
-                          child: Text('Roster month', style: text.titleMedium),
+                          child: Text(
+                            context.tr('Roster month'),
+                            style: text.titleMedium,
+                          ),
                         ),
                         MonthSwitcher(
                           month: _month,
@@ -172,10 +176,13 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
                     TextField(
                       controller: _rowLabel,
                       textCapitalization: TextCapitalization.characters,
-                      decoration: const InputDecoration(
-                        labelText: 'Your name as printed (optional)',
-                        helperText:
-                            'For ward rosters with one row per nurse, e.g. "K. PERERA"',
+                      decoration: InputDecoration(
+                        labelText: context.tr(
+                          'Your name as printed (optional)',
+                        ),
+                        helperText: context.tr(
+                          'For ward rosters with one row per nurse, e.g. "K. PERERA"',
+                        ),
                         prefixIcon: Icon(Icons.badge_outlined),
                       ),
                     ),
@@ -185,7 +192,7 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
                         Expanded(
                           child: _SourceCard(
                             icon: Icons.photo_camera_outlined,
-                            title: 'Take photo',
+                            title: context.tr('Take photo'),
                             color: AppColors.lavender,
                             iconColor: AppColors.lavenderDeep,
                             onTap: _busy
@@ -197,7 +204,7 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
                         Expanded(
                           child: _SourceCard(
                             icon: Icons.photo_library_outlined,
-                            title: 'From gallery',
+                            title: context.tr('From gallery'),
                             color: AppColors.peach,
                             iconColor: AppColors.peachDeep,
                             onTap: _busy
@@ -220,15 +227,20 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
                                 color: AppColors.skyDeep,
                                 size: 20,
                               ),
-                              const SizedBox(width: 8),
-                              Text('For a clean read', style: text.titleSmall),
+                              SizedBox(width: 8),
+                              Text(
+                                context.tr('For a clean read'),
+                                style: text.titleSmall,
+                              ),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          for (final tip in const [
-                            'Lay the roster flat in good light',
-                            'Fill the frame and hold the phone straight',
-                            'Include the row of day numbers',
+                          SizedBox(height: 8),
+                          for (final tip in [
+                            context.tr('Lay the roster flat in good light'),
+                            context.tr(
+                              'Fill the frame and hold the phone straight',
+                            ),
+                            context.tr('Include the row of day numbers'),
                           ])
                             Padding(
                               padding: const EdgeInsets.only(top: 4),
@@ -242,7 +254,7 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
                       child: TextButton.icon(
                         onPressed: _busy ? null : _pasteText,
                         icon: const Icon(Icons.content_paste_rounded, size: 18),
-                        label: const Text('Paste roster text instead'),
+                        label: Text(context.tr('Paste roster text instead')),
                       ),
                     ),
                   ],
@@ -260,7 +272,9 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              'Reading your ${Fmt.monthYear(_month)} roster…',
+                              context.tr('Reading your {month} roster…', {
+                                'month': Fmt.monthYear(_month),
+                              }),
                               style: text.titleSmall,
                             ),
                           ],

@@ -1,7 +1,11 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/format.dart';
+import '../../core/notices.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/pastel_card.dart';
@@ -20,6 +24,8 @@ Future<bool> runDutyAction(
 ) async {
   final scope = AppScope.of(context);
   final repo = scope.repository;
+  // Notification texts in the nurse's language, without holding on to the context.
+  final tr = scope.noticeTr;
   DutySummary? summary;
 
   final ok = await context.runWithFeedback(() async {
@@ -29,7 +35,13 @@ Future<bool> runDutyAction(
         // A missing alert must never block the check-in itself.
         try {
           if (scope.settings.otAlerts) {
-            await scope.reminders.scheduleOtTransition(started);
+            await scope.reminders.scheduleOtTransition(
+              started,
+              title: tr('Main Shift Completed!'),
+              body: tr(
+                'Switched to Overtime (OT) Mode. Keep up the great work! 🩺',
+              ),
+            );
           }
         } catch (_) {}
       case ShiftAction.checkOut || ShiftAction.endOt:
@@ -44,6 +56,8 @@ Future<bool> runDutyAction(
   if (!ok) return false;
 
   scope.sync.changed();
+  // Day summary and, if pay details are missing, a gentle reminder. Never blocks.
+  if (summary != null) unawaited(_afterDuty(scope, shift, summary!));
   if (!context.mounted) return true;
   if (summary != null) {
     await showDutySummary(context, summary!);
@@ -52,6 +66,86 @@ Future<bool> runDutyAction(
     await ProgressivePrompts.offerReminders(context);
   }
   return true;
+}
+
+/// After a duty ends: the day's earnings summary, and a pay-details reminder at most
+/// once a week while basic salary or deductions are missing.
+Future<void> _afterDuty(AppScope scope, Shift shift, DutySummary s) async {
+  try {
+    final tr = scope.noticeTr;
+    final day = formatDay(shift.date);
+
+    // Running totals for the day (a double, or a day and a night duty, add up).
+    final key = 'day.$day';
+    final prev = scope.prefs.read(key);
+    final totals = prev == null
+        ? <String, dynamic>{'hours': 0.0, 'ot': 0.0, 'pay': 0.0}
+        : jsonDecode(prev) as Map<String, dynamic>;
+    totals['hours'] = (totals['hours'] as num) + s.totalHours;
+    totals['ot'] = (totals['ot'] as num) + s.otHours;
+    totals['pay'] = (totals['pay'] as num) + s.totalPay;
+    await scope.prefs.write(key, jsonEncode(totals));
+
+    if (scope.settings.daySummary) {
+      await scope.notify(
+        Notice(
+          id: noticeId('day:$day'),
+          kind: NoticeKind.daySummary,
+          title: tr("Today's summary"),
+          body: tr(
+            '{hours} h worked · {ot} h OT · {pay} extra earned (OT and allowances). This month so far: {month}.',
+            {
+              'hours': Fmt.hours((totals['hours'] as num).toDouble()),
+              'ot': Fmt.hours((totals['ot'] as num).toDouble()),
+              'pay': Fmt.lkr(totals['pay'] as num),
+              'month': Fmt.lkr(s.monthToDateOt + s.monthToDateNight),
+            },
+          ),
+          // Shortly after the day's last duty; a later duty that day replaces it.
+          at: s.checkOut.add(const Duration(minutes: 30)),
+        ),
+      );
+    }
+
+    if (scope.settings.payDetailsReminder) {
+      final last = int.tryParse(scope.prefs.read('payNudgeAt') ?? '');
+      final now = DateTime.now();
+      final due =
+          last == null ||
+          now.difference(DateTime.fromMillisecondsSinceEpoch(last)) >
+              const Duration(days: 7);
+      if (due) {
+        final user = await scope.repository.me();
+        final config = await scope.repository.salaryConfig();
+        final noSalary = user.baseSalary <= 0 || user.salaryIsEstimate;
+        final noDeductions = config.deductions.every((d) => d.amount <= 0);
+        if (noSalary || noDeductions) {
+          await scope.prefs.write(
+            'payNudgeAt',
+            '${now.millisecondsSinceEpoch}',
+          );
+          await scope.notify(
+            Notice(
+              id: noticeId('pay:$day'),
+              kind: NoticeKind.payDetails,
+              title: tr('Add your pay details'),
+              body: noSalary
+                  ? tr(
+                      'Your basic salary isn\'t set yet, so your earnings are estimates. It takes a minute.',
+                    )
+                  : tr(
+                      'Add your monthly deductions (W&OP, loans…) so your take-home pay is exact.',
+                    ),
+              at: now,
+              route: NoticeRoute.pay,
+            ),
+          );
+        }
+      }
+    }
+  } catch (_) {
+    // Notifications are a convenience; the duty is already saved.
+  }
 }
 
 String? _successMessage(
@@ -201,7 +295,13 @@ class DutySummarySheet extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'This month so far: ${Fmt.lkr(s.monthToDateOt)} OT · ${Fmt.lkr(s.monthToDateNight)} night allowance',
+                context.tr(
+                  'This month so far: {ot} OT · {night} night allowance',
+                  {
+                    'ot': Fmt.lkr(s.monthToDateOt),
+                    'night': Fmt.lkr(s.monthToDateNight),
+                  },
+                ),
                 style: text.bodySmall,
               ),
               const SizedBox(height: 18),

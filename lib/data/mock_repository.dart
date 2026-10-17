@@ -674,6 +674,61 @@ class MockRepository implements NurseRepository {
     _config = config;
     return _delay(_config);
   }
+
+  @override
+  Future<List<Announcement>> announcements() => _delay([
+    Announcement(
+      id: 'welcome',
+      title: 'Welcome to Nurse Companion',
+      body:
+          'Add your roster and tap Start duty on each shift. Your OT and salary are worked out for you.',
+      at: DateTime(today.year, today.month, today.day - 2, 9),
+    ),
+  ]);
+
+  /// Illustrative figures for the demo only, labelled as samples.
+  @override
+  Future<List<SalaryScale>> salaryScales() => _delay(const [
+    SalaryScale(
+      code: 'NO-III',
+      name: 'Nursing Officer – Grade III (sample)',
+      initial: 50000,
+      increment: 1000,
+      steps: 10,
+    ),
+    SalaryScale(
+      code: 'NO-II',
+      name: 'Nursing Officer – Grade II (sample)',
+      initial: 60000,
+      increment: 1200,
+      steps: 10,
+    ),
+  ]);
+
+  @override
+  Future<void> swapShift(
+    String shiftId, {
+    required String colleague,
+    DateTime? takeDate,
+    ShiftType? takeType,
+  }) async {
+    final i = _shifts.indexWhere((s) => s.id == shiftId);
+    if (i < 0) throw StateError('Shift not found');
+    if (takeDate != null && takeType != null) {
+      final taken = _fromDraft(
+        'm${_nextId++}',
+        ShiftDraft(date: takeDate, type: takeType),
+      );
+      _shifts.add(taken.copyWith(swappedWith: colleague));
+    }
+    _shifts[i] = _shifts[i].copyWith(
+      status: ShiftStatus.swapped,
+      otHours: 0,
+      isOT: false,
+      swappedWith: colleague,
+    );
+    await _delay(null);
+  }
 }
 
 /// Demo sign-in: any credentials work.

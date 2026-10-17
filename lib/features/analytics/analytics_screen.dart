@@ -14,6 +14,7 @@ import '../../core/widgets/pastel_card.dart';
 import '../../data/models.dart';
 import '../onboarding/progressive_prompts.dart';
 import '../roster/roster_widgets.dart';
+import '../../core/i18n/i18n.dart';
 
 class _AnalyticsData {
   const _AnalyticsData(this.forecast, this.trends);
@@ -67,7 +68,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text('Salary Analytics', style: text.headlineSmall),
+                    child: Text(
+                      context.tr('Salary Analytics'),
+                      style: text.headlineSmall,
+                    ),
                   ),
                   MonthSwitcher(
                     month: month,
@@ -113,10 +117,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       _ProjectionCard(f: data.forecast),
                       if (data.forecast.isBasic) ...[
                         const SizedBox(height: AppSpacing.gap),
-                        const _LockedCard(
-                          title: 'Smart forecast',
-                          message:
-                              'Your plan shows a roster-based estimate. Upgrade to add your usual extra OT, absences and a confidence score.',
+                        _LockedCard(
+                          title: context.tr('Smart forecast'),
+                          message: context.tr(
+                            'Your plan shows a roster-based estimate. Upgrade to add your usual extra OT, absences and a confidence score.',
+                          ),
                         ),
                       ],
                       const SizedBox(height: AppSpacing.gap),
@@ -128,17 +133,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       const SizedBox(height: AppSpacing.gap),
                       _PayslipCard(f: data.forecast),
                       const SizedBox(height: AppSpacing.sectionGap),
-                      const SectionHeader(title: 'Workload & wellbeing'),
+                      SectionHeader(title: context.tr('Workload & wellbeing')),
                       const SizedBox(height: 8),
                       if (data.trends case final trends?) ...[
                         _ShiftMixCard(t: trends),
                         const SizedBox(height: AppSpacing.gap),
                         _BurnoutCard(t: trends),
                       ] else
-                        const _LockedCard(
-                          title: 'Workload & burnout insights',
-                          message:
-                              'Shift mix, weekly hours and burnout risk are part of a higher plan.',
+                        _LockedCard(
+                          title: context.tr('Workload & burnout insights'),
+                          message: context.tr(
+                            'Shift mix, weekly hours and burnout risk are part of a higher plan.',
+                          ),
                         ),
                       const SizedBox(height: AppSpacing.gap),
                       _HowCalculated(f: data.forecast),
@@ -175,7 +181,7 @@ class _ProjectionCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Projected take-home',
+                      context.tr('Projected take-home'),
                       style: text.bodyMedium?.copyWith(
                         color: AppColors.textPrimary.withValues(alpha: 0.7),
                       ),
@@ -191,7 +197,10 @@ class _ProjectionCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Likely ${Fmt.thousands(f.rangeLow)} – ${Fmt.thousands(f.rangeHigh)}',
+                      context.tr('Likely {low} – {high}', {
+                        'low': Fmt.thousands(f.rangeLow),
+                        'high': Fmt.thousands(f.rangeHigh),
+                      }),
                       style: text.bodySmall,
                     ),
                   ],
@@ -222,7 +231,7 @@ class _ProjectionCard extends StatelessWidget {
             children: [
               Expanded(
                 child: MetricPill(
-                  label: 'Gross',
+                  label: context.tr('Gross'),
                   value: Fmt.lkr(f.projectedGross),
                   icon: Icons.add_card_rounded,
                   accent: AppColors.mintDeep,
@@ -231,7 +240,7 @@ class _ProjectionCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: MetricPill(
-                  label: 'Deductions',
+                  label: context.tr('Deductions'),
                   value: Fmt.lkr(f.projectedDeductions),
                   icon: Icons.remove_circle_outline_rounded,
                   accent: AppColors.peachDeep,
@@ -242,7 +251,10 @@ class _ProjectionCard extends StatelessWidget {
           if (f.rosterOnlyNet != f.projectedNet) ...[
             const SizedBox(height: 10),
             Text(
-              'Roster alone gives ${Fmt.lkr(f.rosterOnlyNet)}; the forecast adds your usual extra OT and absences.',
+              context.tr(
+                'Roster alone gives {amount}; the forecast adds your usual extra OT and absences.',
+                {'amount': Fmt.lkr(f.rosterOnlyNet)},
+              ),
               style: text.bodySmall,
             ),
           ],
@@ -261,10 +273,10 @@ class _EarnedCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final parts = {
-      'Basic (so far)': f.earnedBreakdown['basicProRata'] ?? 0,
-      'Allowances': f.earnedBreakdown['allowancesProRata'] ?? 0,
-      'Overtime': f.earnedBreakdown['overtime'] ?? 0,
-      'Night allowance': f.earnedBreakdown['nightAllowance'] ?? 0,
+      context.tr('Basic (so far)'): f.earnedBreakdown['basicProRata'] ?? 0,
+      context.tr('Allowances'): f.earnedBreakdown['allowancesProRata'] ?? 0,
+      context.tr('Overtime'): f.earnedBreakdown['overtime'] ?? 0,
+      context.tr('Night allowance'): f.earnedBreakdown['nightAllowance'] ?? 0,
     };
     final total = parts.values.fold(0.0, (a, b) => a + b);
     return PastelCard(
@@ -273,7 +285,7 @@ class _EarnedCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Earned so far', style: text.titleMedium),
+          Text(context.tr('Earned so far'), style: text.titleMedium),
           Text(
             '${f.daysElapsed} of ${f.daysInMonth} days',
             style: text.bodySmall,
@@ -323,9 +335,13 @@ class _OtCard extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final segments = [
       (label: 'Done', value: f.otCompleted, color: AppColors.ink),
-      (label: 'Rostered', value: f.otScheduled, color: AppColors.lavenderDeep),
       (
-        label: 'Likely extra',
+        label: context.tr('Rostered'),
+        value: f.otScheduled,
+        color: AppColors.lavenderDeep,
+      ),
+      (
+        label: context.tr('Likely extra'),
         value: f.otExpectedExtra,
         color: AppColors.lavenderDeep.withValues(alpha: 0.4),
       ),
@@ -348,9 +364,12 @@ class _OtCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('OT this month', style: text.titleMedium),
+                    Text(context.tr('OT this month'), style: text.titleMedium),
                     Text(
-                      'Likely ${Fmt.hours(f.otRangeLow)}–${Fmt.hours(f.otRangeHigh)} hrs',
+                      context.tr('Likely {low}–{high} hrs', {
+                        'low': Fmt.hours(f.otRangeLow),
+                        'high': Fmt.hours(f.otRangeHigh),
+                      }),
                       style: text.bodySmall,
                     ),
                   ],
@@ -411,13 +430,15 @@ class _OtCard extends StatelessWidget {
           if (f.otHistoricalAverage != null) ...[
             const SizedBox(height: 12),
             Text(
-              'Your usual month: ${Fmt.hours(f.otHistoricalAverage!)} hrs of OT',
+              context.tr('Your usual month: {hours} hrs of OT', {
+                'hours': Fmt.hours(f.otHistoricalAverage!),
+              }),
               style: text.bodySmall,
             ),
           ],
           if (byDay.isNotEmpty) ...[
             const SizedBox(height: 18),
-            Text('OT by weekday', style: text.titleSmall),
+            Text(context.tr('OT by weekday'), style: text.titleSmall),
             const SizedBox(height: 12),
             StackedCapsuleBars(
               height: 90,
@@ -439,7 +460,7 @@ class _OtCard extends StatelessWidget {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Text('OT habit:', style: text.bodySmall),
+                Text(context.tr('OT habit:'), style: text.bodySmall),
                 for (final d in f.consistentOtDays)
                   Chip(
                     label: Text(d),
@@ -503,27 +524,31 @@ class _PayslipCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Payslip preview', style: text.titleMedium),
+          Text(context.tr('Payslip preview'), style: text.titleMedium),
           const SizedBox(height: 8),
-          row('Basic salary', f.baseSalary),
-          row('Allowances', f.allowances),
+          row(context.tr('Basic salary'), f.baseSalary),
+          row(context.tr('Allowances'), f.allowances),
           row(
-            'Night allowance',
+            context.tr('Night allowance'),
             f.nightAmount,
             note: '${Fmt.hours(f.nightShifts)} shifts',
           ),
           row(
-            'Overtime',
+            context.tr('Overtime'),
             f.otAmount,
             note: '${Fmt.hours(f.otTotal)}h × ${Fmt.thousands(f.otHourlyRate)}',
           ),
           const Divider(height: 18),
-          row('Gross', f.projectedGross, bold: true),
-          row('Fixed deductions', f.configuredDeductions, minus: true),
+          row(context.tr('Gross'), f.projectedGross, bold: true),
+          row(
+            context.tr('Fixed deductions'),
+            f.configuredDeductions,
+            minus: true,
+          ),
           if (f.noPayAmount > 0)
-            row('No-pay deductions', f.noPayAmount, minus: true),
+            row(context.tr('No-pay deductions'), f.noPayAmount, minus: true),
           const Divider(height: 18),
-          row('Net (LKR)', f.projectedNet, bold: true),
+          row(context.tr('Net (LKR)'), f.projectedNet, bold: true),
         ],
       ),
     );
@@ -551,7 +576,10 @@ class _ShiftMixCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Shift mix · last 3 months', style: text.titleMedium),
+          Text(
+            context.tr('Shift mix · last 3 months'),
+            style: text.titleMedium,
+          ),
           Text('${t.workedShifts} shifts worked', style: text.bodySmall),
           const SizedBox(height: 14),
           ClipRRect(
@@ -594,7 +622,7 @@ class _ShiftMixCard extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       '${switch (m.label) {
-                        'OffDayOT' => 'Off-day OT',
+                        'OffDayOT' => context.tr('Off-day OT'),
                         'LongDuty' => 'D / 24',
                         _ => m.label,
                       }} ${Fmt.hours(t.percentages[m.label] ?? 0)}%',
@@ -611,7 +639,7 @@ class _ShiftMixCard extends StatelessWidget {
             children: [
               Expanded(
                 child: MetricPill(
-                  label: 'Avg. weekly',
+                  label: context.tr('Avg. weekly'),
                   value: '${Fmt.hours(t.avgWeeklyHours)} hrs',
                   icon: Icons.calendar_view_week_rounded,
                 ),
@@ -619,7 +647,7 @@ class _ShiftMixCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: MetricPill(
-                  label: 'OT share',
+                  label: context.tr('OT share'),
                   value: '${(t.otRatio * 100).round()}% of hours',
                   icon: Icons.more_time_rounded,
                 ),
@@ -646,9 +674,9 @@ class _BurnoutCard extends StatelessWidget {
       _ => (AppColors.mint, AppColors.mintDeep),
     };
     final trend = switch (t.otTrend) {
-      'rising' => 'OT rising',
-      'falling' => 'OT falling',
-      'stable' => 'OT steady',
+      'rising' => context.tr('OT rising'),
+      'falling' => context.tr('OT falling'),
+      'stable' => context.tr('OT steady'),
       _ => null,
     };
 
@@ -672,7 +700,7 @@ class _BurnoutCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Burnout risk', style: text.bodyMedium),
+                    Text(context.tr('Burnout risk'), style: text.bodyMedium),
                     Text(t.burnoutLevel, style: text.headlineSmall),
                     if (trend != null) Text(trend, style: text.bodySmall),
                   ],
@@ -683,18 +711,18 @@ class _BurnoutCard extends StatelessWidget {
           const SizedBox(height: 14),
           if (t.burnoutReasons.isEmpty)
             Text(
-              'Your recent workload looks balanced. Keep it up!',
+              context.tr('Your recent workload looks balanced. Keep it up!'),
               style: text.bodyMedium?.copyWith(color: AppColors.textPrimary),
             )
           else
             for (final r in t.burnoutReasons)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
+                padding: EdgeInsets.symmetric(vertical: 3),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(Icons.circle, size: 7, color: accent),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         r,
@@ -706,7 +734,7 @@ class _BurnoutCard extends StatelessWidget {
                   ],
                 ),
               ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Text(
             t.disclaimer,
             style: text.bodySmall?.copyWith(fontStyle: FontStyle.italic),
@@ -740,7 +768,10 @@ class _HowCalculated extends StatelessWidget {
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           tilePadding: EdgeInsets.zero,
-          title: Text('How is this calculated?', style: text.titleSmall),
+          title: Text(
+            context.tr('How is this calculated?'),
+            style: text.titleSmall,
+          ),
           childrenPadding: const EdgeInsets.only(bottom: 16),
           expandedCrossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -758,7 +789,7 @@ class _HowCalculated extends StatelessWidget {
                 child: Text('•  $a', style: text.bodyMedium),
               ),
             const SizedBox(height: 8),
-            Text('Confidence factors', style: text.titleSmall),
+            Text(context.tr('Confidence factors'), style: text.titleSmall),
             const SizedBox(height: 8),
             for (final e in f.confidenceFactors.entries)
               Padding(
@@ -768,7 +799,7 @@ class _HowCalculated extends StatelessWidget {
                     Expanded(
                       flex: 5,
                       child: Text(
-                        _factorLabels[e.key] ?? e.key,
+                        context.tr(_factorLabels[e.key] ?? e.key),
                         style: text.bodySmall,
                       ),
                     ),
@@ -810,7 +841,9 @@ class _EstimateBanner extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'These figures use a typical nursing salary. Add yours for exact predictions.',
+              context.tr(
+                'These figures use a typical nursing salary. Add yours for exact predictions.',
+              ),
               style: text.bodyMedium?.copyWith(color: AppColors.textPrimary),
             ),
           ),
@@ -822,7 +855,7 @@ class _EstimateBanner extends StatelessWidget {
               minimumSize: const Size(0, 38),
               padding: const EdgeInsets.symmetric(horizontal: 14),
             ),
-            child: const Text('Add'),
+            child: Text(context.tr('Add')),
           ),
         ],
       ),

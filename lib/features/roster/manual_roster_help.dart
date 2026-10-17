@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import 'roster_widgets.dart';
+import '../../core/i18n/i18n.dart';
 
 /// "How to add your roster" guide for the manual roster screen.
 Future<void> showManualRosterHelp(BuildContext context) =>
@@ -64,11 +65,15 @@ class ManualRosterHelp extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('How to add your roster', style: text.titleLarge),
+              Text(
+                context.tr('How to add your roster'),
+                style: text.titleLarge,
+              ),
               const SizedBox(height: 4),
               Text(
-                'Type your duty roster day by day. It takes about a minute '
-                'for a whole month.',
+                context.tr(
+                  'Type your duty roster day by day. It takes about a minute for a whole month.',
+                ),
                 style: text.bodyMedium,
               ),
               const SizedBox(height: 18),
@@ -76,14 +81,14 @@ class ManualRosterHelp extends StatelessWidget {
                 _Step(
                   number: i + 1,
                   icon: s.icon,
-                  title: s.title,
-                  body: s.body,
+                  title: context.tr(s.title),
+                  body: context.tr(s.body),
                 ),
               const SizedBox(height: 6),
-              Text('Duty codes', style: text.titleMedium),
+              Text(context.tr('Duty codes'), style: text.titleMedium),
               const SizedBox(height: 4),
               Text(
-                'The same codes as your ward roster.',
+                context.tr('The same codes as your ward roster.'),
                 style: text.bodySmall,
               ),
               const SizedBox(height: 10),
@@ -106,9 +111,9 @@ class ManualRosterHelp extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'D and 24 duties include their OT automatically '
-                        '(6 h + 6 h and 6 h + 18 h). Have a photo of the roster? '
-                        'Use Scan Roster instead and fix only what it misreads.',
+                        context.tr(
+                          'D and 24 duties include their OT automatically (6 h + 6 h and 6 h + 18 h). Have a photo of the roster? Use Scan Roster instead and fix only what it misreads.',
+                        ),
                         style: text.bodySmall?.copyWith(
                           color: AppColors.textPrimary,
                         ),
@@ -120,7 +125,7 @@ class ManualRosterHelp extends StatelessWidget {
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Got it'),
+                child: Text(context.tr('Got it')),
               ),
             ],
           ),
@@ -206,8 +211,8 @@ class _CodeRow extends StatelessWidget {
           Expanded(
             child: Text(
               code.isRest
-                  ? code.label
-                  : '${code.label} · ${code.type.timeRange}',
+                  ? context.tr(code.label)
+                  : '${context.tr(code.label)} · ${code.type.timeRange}',
               style: text.bodyMedium?.copyWith(color: AppColors.textPrimary),
             ),
           ),

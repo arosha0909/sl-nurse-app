@@ -10,9 +10,19 @@ abstract final class AppConfig {
 
   /// Google sign-in: the OAuth *Web* client ID (must also be in the API's GOOGLE_CLIENT_IDS),
   /// and on iOS the iOS client ID. Empty = Google button hidden.
-  static const googleServerClientId = String.fromEnvironment(
+  ///
+  /// Normally the API supplies the Web client ID (GET /app/config), so builds need no
+  /// Google setup; `--dart-define=GOOGLE_SERVER_CLIENT_ID=…` overrides it.
+  static const _googleServerClientIdDefine = String.fromEnvironment(
     'GOOGLE_SERVER_CLIENT_ID',
   );
+  static String _googleServerClientIdFromApi = '';
+  static String get googleServerClientId =>
+      _googleServerClientIdDefine.isNotEmpty
+      ? _googleServerClientIdDefine
+      : _googleServerClientIdFromApi;
+  static set googleServerClientIdFromApi(String id) =>
+      _googleServerClientIdFromApi = id;
   static const googleIosClientId = String.fromEnvironment(
     'GOOGLE_IOS_CLIENT_ID',
   );

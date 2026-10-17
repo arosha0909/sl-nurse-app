@@ -1,30 +1,32 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../data/models.dart';
-import 'format.dart';
+import 'notices.dart';
 
-/// Shift reminders, offered once after the nurse's first check-in and toggled in Profile.
-/// Reminders are local to the device: nothing is sent to the server.
+/// Phone notifications: duty reminders planned from the roster, the OT switch on long
+/// duties, and one-off notices (day summary, pay details). Everything is scheduled on the
+/// device, so it works offline and nothing is sent to the server.
 abstract interface class ReminderService {
   /// Local scheduled notifications work on Android and iOS only.
   bool get supported;
 
+  /// The nurse has turned notifications on (and the OS allowed them).
   Future<bool> isEnabled();
 
   /// Asks the OS for permission. Returns false if the nurse declines.
   Future<bool> enable();
   Future<void> disable();
 
-  /// Replaces all scheduled reminders with one per upcoming work shift, [lead] before it.
-  Future<void> schedule(
-    List<Shift> upcoming, {
-    required DateTime now,
-    Duration lead = reminderLead,
-  });
+  /// Replaces every roster-planned notification with [notices].
+  Future<void> schedule(List<Notice> notices);
+
+  /// Shows [notice] at its time (immediately if that has passed).
+  Future<void> show(Notice notice);
 
   /// Whether the one-time "turn on reminders?" prompt has been shown on this device.
   Future<bool> wasOffered();
@@ -32,14 +34,19 @@ abstract interface class ReminderService {
 
   /// On a long duty, notifies the nurse when the main shift ends and OT begins.
   /// Asks for notification permission if needed; independent of the reminders toggle.
-  Future<void> scheduleOtTransition(Shift shift);
+  Future<void> scheduleOtTransition(
+    Shift shift, {
+    required String title,
+    required String body,
+  });
   Future<void> cancelOtTransition();
-}
 
-/// Shown when a long duty's main hours are done.
-const otTransitionTitle = 'Main Shift Completed!';
-const otTransitionBody =
-    'Switched to Overtime (OT) Mode. Keep up the great work! 🩺';
+  /// Called with a [NoticeRoute] when the nurse taps a notification.
+  set onOpen(ValueChanged<String>? handler);
+
+  /// The route of the notification that launched the app, if any (read once).
+  Future<String?> takeLaunchRoute();
+}
 
 /// When the OT-transition alert fires for [shift], or null if it doesn't apply.
 DateTime? otTransitionAt(Shift shift, DateTime now) {
@@ -58,48 +65,26 @@ String leadLabel(Duration lead) => lead.inMinutes < 60
     ? '1 hour'
     : '${lead.inMinutes ~/ 60} hours';
 
-/// Which shifts get a reminder, and when. Pure, so it is unit-tested.
-List<({Shift shift, DateTime at})> plannedReminders(
-  List<Shift> shifts,
-  DateTime now, [
-  Duration lead = reminderLead,
-]) =>
-    [
-        for (final s in shifts)
-          if (s.type != ShiftType.off &&
-              !s.isLeave &&
-              s.status == ShiftStatus.scheduled)
-            (shift: s, at: s.type.window(s.date).start.subtract(lead)),
-      ].where((r) => r.at.isAfter(now)).toList()
-      ..sort((a, b) => a.at.compareTo(b.at));
-
 class LocalReminderService implements ReminderService {
   final _plugin = FlutterLocalNotificationsPlugin();
   bool _initialised = false;
+  ValueChanged<String>? _onOpen;
 
   static const _enabledKey = 'reminders.enabled';
   static const _offeredKey = 'reminders.offered';
   static const _otTransitionId = 900001;
-  static const _dutyChannel = AndroidNotificationDetails(
-    'duty_status',
-    'Duty status',
-    channelDescription: 'Tells you when a long duty switches to overtime',
-    importance: Importance.high,
-    priority: Priority.high,
-  );
-  static const _channel = AndroidNotificationDetails(
-    'shift_reminders',
-    'Shift reminders',
-    channelDescription: 'A reminder an hour before each rostered shift',
-    importance: Importance.high,
-    priority: Priority.high,
-  );
+
+  /// Brand charcoal behind the white status-bar icon.
+  static const _brand = Color(0xFF2B2D42);
 
   @override
   bool get supported =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
+
+  @override
+  set onOpen(ValueChanged<String>? handler) => _onOpen = handler;
 
   Future<void> _init() async {
     if (_initialised) return;
@@ -108,7 +93,8 @@ class LocalReminderService implements ReminderService {
     tz.setLocalLocation(tz.getLocation('Asia/Colombo'));
     await _plugin.initialize(
       settings: const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        // White silhouette of the app character (Android requires a one-colour icon).
+        android: AndroidInitializationSettings('ic_stat_nurse'),
         // Permission is requested explicitly from the prompt, not at launch.
         iOS: DarwinInitializationSettings(
           requestAlertPermission: false,
@@ -116,36 +102,80 @@ class LocalReminderService implements ReminderService {
           requestSoundPermission: false,
         ),
       ),
+      onDidReceiveNotificationResponse: (r) => _onOpen?.call(_route(r.payload)),
     );
     _initialised = true;
+  }
+
+  /// Payload is "route|kind".
+  static String _route(String? payload) =>
+      (payload ?? NoticeRoute.home).split('|').first;
+
+  static String _payload(Notice n) => '${n.route}|${n.kind.name}';
+
+  static NotificationDetails _details(Notice n) {
+    final (channel, name, description) = switch (n.kind) {
+      NoticeKind.otSwitch => (
+        'duty_status',
+        'Duty status',
+        'Tells you when a long duty switches to overtime',
+      ),
+      NoticeKind.daySummary ||
+      NoticeKind.payDetails ||
+      NoticeKind.announcement => (
+        'summaries',
+        'Summaries & tips',
+        'Your daily earnings summary and helpful reminders',
+      ),
+      _ => (
+        'shift_reminders',
+        'Duty reminders',
+        'Before your duty starts and ends, and if you forget to start it',
+      ),
+    };
+    return NotificationDetails(
+      android: AndroidNotificationDetails(
+        channel,
+        name,
+        channelDescription: description,
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: 'ic_stat_nurse',
+        // The full-colour app icon inside the notification.
+        largeIcon: const DrawableResourceAndroidBitmap('notification_large'),
+        color: _brand,
+        styleInformation: BigTextStyleInformation(n.body),
+      ),
+      iOS: const DarwinNotificationDetails(),
+    );
   }
 
   @override
   Future<bool> isEnabled() async =>
       (await SharedPreferences.getInstance()).getBool(_enabledKey) ?? false;
 
-  @override
-  Future<bool> enable() async {
-    if (!supported) return false;
-    await _init();
-    bool granted;
+  Future<bool> _requestPermission() async {
     if (defaultTargetPlatform == TargetPlatform.android) {
-      granted =
-          await _plugin
+      return await _plugin
               .resolvePlatformSpecificImplementation<
                 AndroidFlutterLocalNotificationsPlugin
               >()
               ?.requestNotificationsPermission() ??
           false;
-    } else {
-      granted =
-          await _plugin
-              .resolvePlatformSpecificImplementation<
-                IOSFlutterLocalNotificationsPlugin
-              >()
-              ?.requestPermissions(alert: true, sound: true, badge: true) ??
-          false;
     }
+    return await _plugin
+            .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin
+            >()
+            ?.requestPermissions(alert: true, sound: true, badge: true) ??
+        false;
+  }
+
+  @override
+  Future<bool> enable() async {
+    if (!supported) return false;
+    await _init();
+    final granted = await _requestPermission();
     await (await SharedPreferences.getInstance()).setBool(_enabledKey, granted);
     return granted;
   }
@@ -159,32 +189,44 @@ class LocalReminderService implements ReminderService {
   }
 
   @override
-  Future<void> schedule(
-    List<Shift> upcoming, {
-    required DateTime now,
-    Duration lead = reminderLead,
-  }) async {
+  Future<void> schedule(List<Notice> notices) async {
     if (!supported || !await isEnabled()) return;
     await _init();
-    // Replace shift reminders only; an OT-transition alert for a duty in progress stays.
+    // Replace roster reminders only; the OT switch and one-off notices stay.
     for (final p in await _plugin.pendingNotificationRequests()) {
-      if (p.id != _otTransitionId) await _plugin.cancel(id: p.id);
+      final kind = NoticeKind.parse((p.payload ?? '').split('|').last);
+      if (kind.fromRoster) await _plugin.cancel(id: p.id);
     }
-    // iOS keeps at most 64 pending notifications; two weeks of shifts is well below that.
-    for (final r in plannedReminders(upcoming, now, lead).take(40)) {
-      final start = r.shift.type.window(r.shift.date).start;
-      await _plugin.zonedSchedule(
-        id: r.shift.id.hashCode & 0x7fffffff,
-        title: '${r.shift.type.label} in ${leadLabel(lead)}',
-        body:
-            'Starts at ${Fmt.time(start)}${r.shift.otHours > 0 ? ' · +${Fmt.hours(r.shift.otHours)}h OT planned' : ''}',
-        scheduledDate: tz.TZDateTime.from(r.at, tz.local),
-        notificationDetails: const NotificationDetails(
-          android: _channel,
-          iOS: DarwinNotificationDetails(),
-        ),
-        // Inexact (Doze-friendly) avoids the exact-alarm permission; a few minutes' drift is fine.
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+    // iOS keeps at most 64 pending notifications; two weeks of duties stays below that.
+    for (final n in notices.take(50)) {
+      await _zoned(n);
+    }
+  }
+
+  Future<void> _zoned(Notice n) => _plugin.zonedSchedule(
+    id: n.id,
+    title: n.title,
+    body: n.body,
+    payload: _payload(n),
+    scheduledDate: tz.TZDateTime.from(n.at, tz.local),
+    notificationDetails: _details(n),
+    // Inexact (Doze-friendly) avoids the exact-alarm permission; a few minutes' drift is fine.
+    androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+  );
+
+  @override
+  Future<void> show(Notice notice) async {
+    if (!supported || !await isEnabled()) return;
+    await _init();
+    if (notice.at.isAfter(DateTime.now())) {
+      await _zoned(notice);
+    } else {
+      await _plugin.show(
+        id: notice.id,
+        title: notice.title,
+        body: notice.body,
+        notificationDetails: _details(notice),
+        payload: _payload(notice),
       );
     }
   }
@@ -198,34 +240,23 @@ class LocalReminderService implements ReminderService {
       (await SharedPreferences.getInstance()).setBool(_offeredKey, true);
 
   @override
-  Future<void> scheduleOtTransition(Shift shift) async {
+  Future<void> scheduleOtTransition(
+    Shift shift, {
+    required String title,
+    required String body,
+  }) async {
     final at = otTransitionAt(shift, DateTime.now());
     if (!supported || at == null) return;
     await _init();
-    final granted = defaultTargetPlatform == TargetPlatform.android
-        ? await _plugin
-                  .resolvePlatformSpecificImplementation<
-                    AndroidFlutterLocalNotificationsPlugin
-                  >()
-                  ?.requestNotificationsPermission() ??
-              false
-        : await _plugin
-                  .resolvePlatformSpecificImplementation<
-                    IOSFlutterLocalNotificationsPlugin
-                  >()
-                  ?.requestPermissions(alert: true, sound: true) ??
-              false;
-    if (!granted) return;
-    await _plugin.zonedSchedule(
-      id: _otTransitionId,
-      title: otTransitionTitle,
-      body: otTransitionBody,
-      scheduledDate: tz.TZDateTime.from(at, tz.local),
-      notificationDetails: const NotificationDetails(
-        android: _dutyChannel,
-        iOS: DarwinNotificationDetails(),
+    if (!await _requestPermission()) return;
+    await _zoned(
+      Notice(
+        id: _otTransitionId,
+        kind: NoticeKind.otSwitch,
+        title: title,
+        body: body,
+        at: at,
       ),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
     );
   }
 
@@ -234,6 +265,15 @@ class LocalReminderService implements ReminderService {
     if (!supported) return;
     await _init();
     await _plugin.cancel(id: _otTransitionId);
+  }
+
+  @override
+  Future<String?> takeLaunchRoute() async {
+    if (!supported) return null;
+    await _init();
+    final details = await _plugin.getNotificationAppLaunchDetails();
+    if (details?.didNotificationLaunchApp != true) return null;
+    return _route(details!.notificationResponse?.payload);
   }
 }
 
@@ -248,7 +288,14 @@ class MemoryReminderService implements ReminderService {
   final bool grant;
   bool enabled = false;
   bool offered = false;
-  List<({Shift shift, DateTime at})> scheduled = const [];
+
+  /// Roster-planned notifications currently scheduled.
+  List<Notice> scheduled = const [];
+
+  /// One-off notifications shown or scheduled (day summary, pay details).
+  final shown = <Notice>[];
+  ValueChanged<String>? _onOpen;
+  String? launchRoute;
 
   @override
   Future<bool> isEnabled() async => enabled;
@@ -263,12 +310,13 @@ class MemoryReminderService implements ReminderService {
   }
 
   @override
-  Future<void> schedule(
-    List<Shift> upcoming, {
-    required DateTime now,
-    Duration lead = reminderLead,
-  }) async {
-    if (enabled) scheduled = plannedReminders(upcoming, now, lead);
+  Future<void> schedule(List<Notice> notices) async {
+    if (enabled) scheduled = notices;
+  }
+
+  @override
+  Future<void> show(Notice notice) async {
+    if (enabled) shown.add(notice);
   }
 
   @override
@@ -281,10 +329,27 @@ class MemoryReminderService implements ReminderService {
   DateTime? otTransition;
 
   @override
-  Future<void> scheduleOtTransition(Shift shift) async {
+  Future<void> scheduleOtTransition(
+    Shift shift, {
+    required String title,
+    required String body,
+  }) async {
     if (supported) otTransition = otTransitionAt(shift, DateTime.now());
   }
 
   @override
   Future<void> cancelOtTransition() async => otTransition = null;
+
+  @override
+  set onOpen(ValueChanged<String>? handler) => _onOpen = handler;
+
+  /// Simulates tapping a notification.
+  void tap(String route) => _onOpen?.call(route);
+
+  @override
+  Future<String?> takeLaunchRoute() async {
+    final r = launchRoute;
+    launchRoute = null;
+    return r;
+  }
 }

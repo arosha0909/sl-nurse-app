@@ -165,7 +165,9 @@ class _ActiveDutyCardState extends State<ActiveDutyCard> {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Started ${Fmt.time(s.checkInTime!)}',
+                      context.tr('Started {time}', {
+                        'time': Fmt.time(s.checkInTime!),
+                      }),
                       style: text.bodySmall,
                     ),
                     if (s.nightAllowanceApplicable)

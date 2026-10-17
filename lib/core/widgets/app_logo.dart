@@ -36,6 +36,9 @@ enum LogoStyle {
 
   /// Charcoal square with the glow and no character (adaptive-icon background layer).
   backdrop,
+
+  /// White silhouette on transparent: the Android status-bar notification icon.
+  silhouette,
 }
 
 abstract final class LogoColors {
@@ -62,6 +65,11 @@ class AppLogoPainter extends CustomPainter {
     canvas.save();
     canvas.translate((size.width - s) / 2, (size.height - s) / 2);
 
+    if (style == LogoStyle.silhouette) {
+      _silhouette(canvas, s);
+      canvas.restore();
+      return;
+    }
     if (style != LogoStyle.character) _tile(canvas, s);
     if (style == LogoStyle.backdrop) {
       canvas.restore();
@@ -80,6 +88,73 @@ class AppLogoPainter extends CustomPainter {
     canvas.scale(s * scale);
     _character(canvas, glow: style != LogoStyle.character);
     canvas.restore();
+  }
+
+  /// Kit and nurse cap in white, with the eyes, smile and cap cross cut out, so the
+  /// character still reads at status-bar size (24 dp).
+  void _silhouette(Canvas c, double s) {
+    c.saveLayer(Offset.zero & Size.square(s), Paint());
+    c.scale(s);
+    final white = Paint()..color = Colors.white;
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTRB(0.1, 0.4, 0.9, 0.92),
+        const Radius.circular(0.16),
+      ),
+      white,
+    );
+    c.drawPath(
+      Path()
+        ..moveTo(0.24, 0.43)
+        ..cubicTo(0.24, 0.3, 0.27, 0.18, 0.35, 0.15)
+        ..lineTo(0.65, 0.15)
+        ..cubicTo(0.73, 0.18, 0.76, 0.3, 0.76, 0.43)
+        ..close(),
+      white,
+    );
+    final cut = Paint()..blendMode = BlendMode.clear;
+    // Cross on the cap.
+    c.drawRect(
+      Rect.fromCenter(
+        center: const Offset(0.5, 0.29),
+        width: 0.05,
+        height: 0.16,
+      ),
+      cut,
+    );
+    c.drawRect(
+      Rect.fromCenter(
+        center: const Offset(0.5, 0.29),
+        width: 0.16,
+        height: 0.05,
+      ),
+      cut,
+    );
+    // Band between cap and kit.
+    c.drawRect(const Rect.fromLTRB(0.2, 0.44, 0.8, 0.48), cut);
+    // Eyes and smile.
+    for (final x in [0.36, 0.64]) {
+      c.drawOval(
+        Rect.fromCenter(center: Offset(x, 0.62), width: 0.1, height: 0.13),
+        cut,
+      );
+    }
+    c.drawArc(
+      Rect.fromCenter(
+        center: const Offset(0.5, 0.72),
+        width: 0.18,
+        height: 0.12,
+      ),
+      math.pi * 0.15,
+      math.pi * 0.7,
+      false,
+      Paint()
+        ..blendMode = BlendMode.clear
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.05
+        ..strokeCap = StrokeCap.round,
+    );
+    c.restore();
   }
 
   void _tile(Canvas canvas, double s) {

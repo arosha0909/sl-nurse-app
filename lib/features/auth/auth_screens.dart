@@ -113,37 +113,7 @@ class WelcomeScreen extends StatelessWidget {
                     AppSpacing.screenPadding,
                     8,
                   ),
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: FilledButton(
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => LoginScreen()),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                context.tr('Get Started'),
-                                style: TextStyle(fontSize: 15),
-                              ),
-                              SizedBox(width: 8),
-                              Icon(Icons.arrow_forward_rounded, size: 20),
-                            ],
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      TextButton(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => RegisterScreen()),
-                        ),
-                        child: Text(context.tr('New here? Create an account')),
-                      ),
-                    ],
-                  ),
+                  child: const _WelcomeActions(),
                 ),
               ],
             ),
@@ -376,6 +346,158 @@ class _ErrorBanner extends StatelessWidget {
 
 /// Social sign-in buttons shown when both the device build and the API support them.
 /// Lays out nothing when no provider is available, so the email/mobile form leads.
+/// Whether Google sign-in can be offered: supported on this device and accepted by the API.
+bool googleAvailable(AppScope scope) =>
+    scope.social.supports(SignInProvider.google) &&
+    scope.auth.serverProviders.contains(SignInProvider.google);
+
+/// Google's sign-in button: white, with the multicolour G (per Google's brand guidance).
+class GoogleButton extends StatelessWidget {
+  const GoogleButton({super.key, required this.onPressed, this.label});
+
+  final VoidCallback? onPressed;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: const Color(0xFF1F1F1F),
+          side: const BorderSide(color: Color(0xFFDADCE0)),
+          elevation: 1,
+          shadowColor: Colors.black26,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const _GoogleMark(),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                label ?? context.tr('Continue with Google'),
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Get Started actions. With Google available it leads (one tap, no password to
+/// remember); email or mobile follows as the alternative.
+class _WelcomeActions extends StatefulWidget {
+  const _WelcomeActions();
+
+  @override
+  State<_WelcomeActions> createState() => _WelcomeActionsState();
+}
+
+class _WelcomeActionsState extends State<_WelcomeActions> {
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) AppScope.of(context).auth.loadProviders();
+    });
+  }
+
+  Future<void> _google() async {
+    final scope = AppScope.of(context);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await scope.auth.signInWith(scope.social, SignInProvider.google);
+    } catch (e) {
+      if (mounted) {
+        setState(
+          () => _error = e is ApiException
+              ? e.message
+              : context.tr(
+                  'Google sign-in didn\'t work. Please try again or use your email/mobile.',
+                ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _open(Widget page) =>
+      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = AppScope.of(context);
+    return ListenableBuilder(
+      listenable: scope.auth,
+      builder: (context, _) {
+        final google = googleAvailable(scope);
+        final getStarted = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                google
+                    ? context.tr('Use email or mobile')
+                    : context.tr('Get Started'),
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 15),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.arrow_forward_rounded, size: 20),
+          ],
+        );
+        return Column(
+          children: [
+            if (_error != null) _ErrorBanner(_error!),
+            if (google) ...[
+              GoogleButton(onPressed: _busy ? null : _google),
+              const SizedBox(height: 10),
+            ],
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: google
+                  ? OutlinedButton(
+                      key: const ValueKey('get-started'),
+                      onPressed: _busy ? null : () => _open(LoginScreen()),
+                      child: getStarted,
+                    )
+                  : FilledButton(
+                      key: const ValueKey('get-started'),
+                      onPressed: () => _open(LoginScreen()),
+                      child: getStarted,
+                    ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: _busy ? null : () => _open(const RegisterScreen()),
+              child: Text(context.tr('New here? Create an account')),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _SocialButtons extends StatefulWidget {
   const _SocialButtons({
     required this.busy,
@@ -432,8 +554,36 @@ class _SocialButtonsState extends State<_SocialButtons> {
               p,
         ];
         if (providers.isEmpty) return const SizedBox.shrink();
+        final lastWasGoogle =
+            scope.prefs.read('signInMethod') == SignInProvider.google.api;
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (providers.contains(SignInProvider.google))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.bolt_rounded,
+                      size: 16,
+                      color: AppColors.mintDeep,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        lastWasGoogle
+                            ? context.tr('You used Google last time')
+                            : context.tr('Fastest: one tap, no password'),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.mintDeep,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             for (final p in providers) ...[
               SizedBox(
                 width: double.infinity,
@@ -450,16 +600,8 @@ class _SocialButtonsState extends State<_SocialButtons> {
                           style: TextStyle(fontSize: 15),
                         ),
                       )
-                    : OutlinedButton.icon(
+                    : GoogleButton(
                         onPressed: widget.busy ? null : () => _signIn(p),
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                        ),
-                        icon: const _GoogleMark(),
-                        label: Text(
-                          context.tr('Continue with Google'),
-                          style: TextStyle(fontSize: 15),
-                        ),
                       ),
               ),
               const SizedBox(height: 10),
@@ -655,7 +797,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             )
                           : null,
                     ),
-                    validator: Validators.emailOrPhone,
+                    validator: (v) =>
+                        context.trOrNull(Validators.emailOrPhone(v)),
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
@@ -785,9 +928,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     return _AuthScaffold(
-      title: 'Create your account',
-      subtitle:
-          'Takes 10 seconds. Pay and ward details can wait until you need them.',
+      title: context.tr('Create your account'),
+      subtitle: context.tr(
+        'Takes 10 seconds. Pay and ward details can wait until you need them.',
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -807,12 +951,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     textCapitalization: TextCapitalization.words,
                     autofillHints: const [AutofillHints.name],
                     textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Your name',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Your name'),
                       prefixIcon: Icon(Icons.badge_outlined),
                     ),
                     validator: (v) =>
-                        _serverErrors['fullName'] ?? Validators.required(v),
+                        _serverErrors['fullName'] ??
+                        context.trOrNull(Validators.required(v)),
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
@@ -828,7 +973,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       prefixIcon: Icon(Icons.person_outline_rounded),
                     ),
                     validator: (v) =>
-                        _serverErrors['contact'] ?? Validators.emailOrPhone(v),
+                        _serverErrors['contact'] ??
+                        context.trOrNull(Validators.emailOrPhone(v)),
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
@@ -854,11 +1000,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     validator: (v) =>
-                        _serverErrors['password'] ?? Validators.password(v),
+                        _serverErrors['password'] ??
+                        context.trOrNull(Validators.password(v)),
                   ),
                   const SizedBox(height: 22),
                   _SubmitButton(
-                    label: 'Create account',
+                    label: context.tr('Create account'),
                     busy: _busy,
                     onPressed: _submit,
                   ),
@@ -868,7 +1015,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            'No salary or ward details needed now: we\'ll ask only when a feature needs them.',
+            context.tr(
+              'No salary or ward details needed now: we\'ll ask only when a feature needs them.',
+            ),
             textAlign: TextAlign.center,
             style: text.bodySmall,
           ),

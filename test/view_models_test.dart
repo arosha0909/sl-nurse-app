@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nurse_companion/core/notices.dart';
 import 'package:nurse_companion/core/reminders.dart';
 import 'package:nurse_companion/data/mock_repository.dart';
 import 'package:nurse_companion/data/models.dart';
@@ -349,8 +350,16 @@ void main() {
         ),
         Shift(id: 'm16', date: DateTime(2026, 10, 16), type: ShiftType.morning),
       ];
-      final planned = plannedReminders(shifts, now);
-      expect(planned.map((r) => r.shift.id), ['night', 'm16']);
+      final planned = planDutyNotices(
+        shifts,
+        now,
+        const NoticeOptions(forgotStart: false, endReminders: false),
+        (t, [a = const {}]) => t,
+      );
+      expect(planned.map((n) => n.id), [
+        noticeId('night:start'),
+        noticeId('m16:start'),
+      ]);
       expect(planned.first.at, DateTime(2026, 10, 13, 18));
       expect(planned.last.at, DateTime(2026, 10, 16, 6));
     });

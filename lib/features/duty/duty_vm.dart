@@ -1,11 +1,5 @@
 import '../../data/models.dart';
 
-/// Annual leave entitlements. These differ between institutions; adjust as needed.
-abstract final class LeavePolicy {
-  static const casualDays = 14.0;
-  static const sickDays = 21.0;
-}
-
 class LeaveBalance {
   const LeaveBalance({
     required this.name,
@@ -62,6 +56,7 @@ class DutyData {
     required List<Shift> yearLeave,
     required UserProfile user,
     required DateTime today,
+    LeaveEntitlements entitlements = const LeaveEntitlements(),
   }) {
     final monthShifts = shifts
         .where((s) => s.date.year == today.year && s.date.month == today.month)
@@ -92,19 +87,25 @@ class DutyData {
       otHoursMonth: worked.fold(0, (sum, s) => sum + s.otHours),
       otTrend: trend,
       leave: [
+        // Entitlements come from the nurse's pay rules (Profile → Pay rules).
         LeaveBalance(
           name: 'Casual leave',
           used: count(LeaveType.casual) + halfDays,
-          entitled: LeavePolicy.casualDays,
+          entitled: entitlements.casual.toDouble(),
+        ),
+        LeaveBalance(
+          name: 'Vacation leave',
+          used: count(LeaveType.vacation),
+          entitled: entitlements.vacation.toDouble(),
         ),
         LeaveBalance(
           name: 'Sick leave',
           used: count(LeaveType.sick),
-          entitled: LeavePolicy.sickDays,
+          entitled: entitlements.sick.toDouble(),
         ),
       ],
       nightAllowanceEarned:
-          worked.where((s) => s.type == ShiftType.night).length *
+          worked.where((s) => s.nightAllowanceApplicable).length *
           user.defaultNightAllowance,
       noPayDays: monthShifts
           .where(

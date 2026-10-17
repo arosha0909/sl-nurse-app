@@ -60,6 +60,12 @@ void main() {
         (108 * e.value).round(),
         LogoStyle.backdrop,
       );
+      // Status-bar notification icon (24 dp, white silhouette).
+      await _png(
+        '$android/drawable-${e.key}/ic_stat_nurse.png',
+        (24 * e.value).round(),
+        LogoStyle.silhouette,
+      );
       // Pre-Android 12 launch screen logo (160 dp).
       await _png(
         '$android/drawable-${e.key}/splash_logo.png',
@@ -84,6 +90,13 @@ void main() {
         LogoStyle.square,
       );
     }
+
+    // Full-colour app icon shown inside notifications.
+    await _png(
+      '$android/drawable-nodpi/notification_large.png',
+      256,
+      LogoStyle.tile,
+    );
 
     await _png('web/favicon.png', 32, LogoStyle.tile);
     await _png('web/icons/Icon-192.png', 192, LogoStyle.tile);
@@ -120,6 +133,7 @@ void main() {
     // Previews for review.
     await _png('build/icon_preview/tile_512.png', 512, LogoStyle.tile);
     await _png('build/icon_preview/tile_96.png', 96, LogoStyle.tile);
+    await _png('build/icon_preview/silhouette_96.png', 96, LogoStyle.silhouette);
     await _png(
       'build/icon_preview/character_512.png',
       512,

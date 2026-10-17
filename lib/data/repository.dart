@@ -20,6 +20,14 @@ abstract interface class NurseRepository {
 
   /// Ends a duty and splits it into main-shift and OT hours (`POST /shifts/check-out`).
   Future<({Shift shift, DutySummary summary})> endDuty(String shiftId);
+
+  /// Gives a duty to [colleague]; optionally adds their duty taken in return.
+  Future<void> swapShift(
+    String shiftId, {
+    required String colleague,
+    DateTime? takeDate,
+    ShiftType? takeType,
+  });
   Future<void> deleteShift(String id);
   Future<BulkResult> bulkShifts(
     List<ShiftDraft> drafts, {
@@ -40,6 +48,12 @@ abstract interface class NurseRepository {
   Future<WorkTrends> workTrends({int months = 3});
   Future<SalaryConfig> salaryConfig();
   Future<SalaryConfig> updateSalaryConfig(SalaryConfig config);
+
+  /// Nursing salary scales the admin has set (empty until they enter figures).
+  Future<List<SalaryScale>> salaryScales();
+
+  /// Current messages from the Nurse Companion team.
+  Future<List<Announcement>> announcements();
 }
 
 /// Session operations, separate from data so the repository stays stateless.

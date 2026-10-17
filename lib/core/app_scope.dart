@@ -4,6 +4,8 @@ import '../data/models.dart';
 import '../data/repository.dart';
 import 'app_settings.dart';
 import 'device_prefs.dart';
+import 'i18n/i18n.dart';
+import 'notices.dart';
 import 'reminders.dart';
 import 'social_sign_in.dart';
 
@@ -23,6 +25,10 @@ class AuthController extends ChangeNotifier {
 
   /// True for the rest of the session after sign-up, so the dashboard greets the new nurse.
   bool isNewUser = false;
+
+  /// How the nurse signed in this session (null after a restored session).
+  SignInProvider? lastProvider;
+  bool usedPassword = false;
 
   /// Social providers both this device and the API support (loaded by the sign-in screens).
   Set<SignInProvider> serverProviders = const {};
@@ -44,10 +50,10 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> login(String emailOrPhone, String password) async =>
-      _apply(await _auth.login(emailOrPhone, password));
+      _apply(await _auth.login(emailOrPhone, password), password: true);
 
   Future<void> register(RegisterRequest request) async =>
-      _apply(await _auth.register(request));
+      _apply(await _auth.register(request), password: true);
 
   /// Google / Apple: returns false if the nurse cancelled the provider's sheet.
   Future<bool> signInWith(SocialSignIn social, SignInProvider provider) async {
@@ -59,13 +65,20 @@ class AuthController extends ChangeNotifier {
         credential.idToken,
         fullName: credential.fullName,
       ),
+      provider: provider,
     );
     return true;
   }
 
-  void _apply(AuthResult result) {
+  void _apply(
+    AuthResult result, {
+    SignInProvider? provider,
+    bool password = false,
+  }) {
     user = result.user;
     isNewUser = result.isNewUser;
+    lastProvider = provider;
+    usedPassword = password;
     _signedIn();
   }
 
@@ -123,6 +136,7 @@ class AppScope extends InheritedWidget {
     required this.reminders,
     required this.prefs,
     required this.settings,
+    required this.inbox,
     required super.child,
   });
 
@@ -145,6 +159,9 @@ class AppScope extends InheritedWidget {
   /// Language, clock and notification preferences.
   final AppSettings settings;
 
+  /// Every notification the nurse has had, for the Notifications screen.
+  final NoticeInbox inbox;
+
   static AppScope of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<AppScope>();
     assert(scope != null, 'AppScope missing above $context');
@@ -157,15 +174,42 @@ class AppScope extends InheritedWidget {
 }
 
 extension ReminderSync on AppScope {
-  /// Re-plans shift reminders for the next two weeks with the chosen lead time.
-  /// A no-op when reminders are off or unsupported.
+  /// Notification texts in the nurse's language (no BuildContext needed).
+  NoticeTr get noticeTr =>
+      (text, [args = const {}]) => translate(settings.language, text, args);
+
+  /// Re-plans duty notifications (before start, forgot to start, before the main shift
+  /// and OT end) for the next two weeks. They always appear in the in-app list; they
+  /// are pushed to the phone only when notifications are on.
   Future<void> rescheduleReminders() async {
-    if (!reminders.supported || !await reminders.isEnabled()) return;
     final now = today();
-    final upcoming = await repository.shifts(
-      from: now,
+    // From yesterday, so a night duty running into this morning is included.
+    final shifts = await repository.shifts(
+      from: now.subtract(const Duration(days: 1)),
       to: now.add(const Duration(days: 14)),
     );
-    await reminders.schedule(upcoming, now: now, lead: settings.reminderLead);
+    final notices = planDutyNotices(
+      shifts,
+      now,
+      NoticeOptions(
+        lead: settings.reminderLead,
+        forgotStart: settings.forgotStartAlert,
+        endReminders: settings.endReminders,
+      ),
+      noticeTr,
+    );
+    await reminders.schedule(notices);
+    await inbox.replacePlanned(notices, now);
+  }
+
+  /// A one-off notification (day summary, pay details): pushed if notifications are on,
+  /// and always kept in the in-app list.
+  Future<void> notify(Notice notice) async {
+    await inbox.add(notice);
+    try {
+      await reminders.show(notice);
+    } catch (_) {
+      // The in-app list still has it.
+    }
   }
 }

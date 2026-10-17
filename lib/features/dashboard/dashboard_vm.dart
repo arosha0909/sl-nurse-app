@@ -26,6 +26,7 @@ class DashboardData {
     required this.avgDailyOtHours,
     required this.today,
     required this.next,
+    this.sleepDay = false,
   });
 
   final UserProfile user;
@@ -40,6 +41,9 @@ class DashboardData {
 
   /// Next rostered work shift after today.
   final Shift? next;
+
+  /// Today is the rest day after a night / 24-hour duty that ended this morning.
+  final bool sleepDay;
 
   static DashboardData build({
     required UserProfile user,
@@ -61,7 +65,9 @@ class DashboardData {
     final variable = List<double>.filled(weeks, 0);
     final completedWorkDays = <DateTime>{};
     for (final s in monthShifts) {
-      if (s.isLeave || s.status == ShiftStatus.missed) continue;
+      // Yesterday may be last month (loaded for the sleep-day check).
+      if (s.date.month != now.month || s.date.year != now.year) continue;
+      if (s.isLeave || s.isSwapped || s.status == ShiftStatus.missed) continue;
       final w = ((s.date.day - 1) ~/ 7).clamp(0, weeks - 1);
       variable[w] += s.otHours * forecast.otHourlyRate;
       if (s.nightAllowanceApplicable) variable[w] += user.defaultNightAllowance;
@@ -95,6 +101,7 @@ class DashboardData {
           ? 0
           : completedOt / completedWorkDays.length,
       today: primaryShiftOn(today, monthShifts),
+      sleepDay: isSleepDay(today, monthShifts),
       next: upcoming
           .where(
             (s) =>
@@ -106,6 +113,22 @@ class DashboardData {
           ),
     );
   }
+}
+
+/// A sleep day: no duty today, and yesterday's duty ran overnight into this morning
+/// (a Night or 24-hour duty that was worked or is still planned).
+bool isSleepDay(DateTime day, List<Shift> shifts) {
+  final today = shifts.where((s) => sameDay(s.date, day));
+  if (today.any((s) => s.isWork && !s.isLeave)) return false;
+  final yesterday = DateTime(day.year, day.month, day.day - 1);
+  return shifts.any(
+    (s) =>
+        sameDay(s.date, yesterday) &&
+        (s.type == ShiftType.night || s.type == ShiftType.twentyFour) &&
+        !s.isLeave &&
+        !s.isSwapped &&
+        s.status != ShiftStatus.missed,
+  );
 }
 
 /// The entry to show for a day: an in-progress or unfinished work shift first,
@@ -127,8 +150,22 @@ Shift? primaryShiftOn(DateTime day, List<Shift> shifts) {
   return onDay.first;
 }
 
+/// Translates a step text; the default keeps English (tests, plain use).
+typedef StepTranslator =
+    String Function(String text, [Map<String, Object?> args]);
+
+String _english(String text, [Map<String, Object?> args = const {}]) {
+  var s = text;
+  args.forEach((k, v) => s = s.replaceAll('{$k}', '$v'));
+  return s;
+}
+
 /// The check-in → main shift → OT stepper for a work shift.
-List<ShiftStep> stepsFor(Shift s, DateTime now) {
+List<ShiftStep> stepsFor(
+  Shift s,
+  DateTime now, [
+  StepTranslator tr = _english,
+]) {
   final rostered = s.type.window(s.date);
   // A standard shift ends at its rostered time; on a long duty OT starts automatically
   // once the main hours since check-in are done.
@@ -142,39 +179,42 @@ List<ShiftStep> stepsFor(Shift s, DateTime now) {
 
   final checkIn = s.checkInTime != null
       ? ShiftStep(
-          title: 'Check-in done',
-          detail: 'Signed in at ${Fmt.time(s.checkInTime!)}',
+          title: tr('Check-in done'),
+          detail: tr('Signed in at {time}', {'time': Fmt.time(s.checkInTime!)}),
           status: StepStatus.done,
         )
       : ShiftStep(
-          title: 'Check in',
+          title: tr('Check in'),
           detail: now.isBefore(window.start)
-              ? 'Starts ${Fmt.relative(window.start, now)} · ${Fmt.time(window.start)}'
-              : 'Shift started at ${Fmt.time(window.start)}',
+              ? tr('Starts {when} · {time}', {
+                  'when': Fmt.relative(window.start, now),
+                  'time': Fmt.time(window.start),
+                })
+              : tr('Shift started at {time}', {'time': Fmt.time(window.start)}),
           status: StepStatus.active,
         );
 
   final ShiftStep main;
   if (s.checkOutTime != null) {
     main = ShiftStep(
-      title: 'Main shift done',
-      detail: 'Signed out at ${Fmt.time(s.checkOutTime!)}',
+      title: tr('Main shift done'),
+      detail: tr('Signed out at {time}', {'time': Fmt.time(s.checkOutTime!)}),
       status: StepStatus.done,
     );
   } else if (s.checkInTime != null) {
     main = ShiftStep(
       title: now.isBefore(window.end)
-          ? 'Main shift ending'
-          : 'Main shift ended',
+          ? tr('Main shift ending')
+          : tr('Main shift ended'),
       detail: now.isBefore(window.end)
           ? '${Fmt.relative(window.end, now)} · ${Fmt.time(window.end)}'
-          : 'Ended ${Fmt.time(window.end)} · sign out',
+          : tr('Ended {time} · sign out', {'time': Fmt.time(window.end)}),
       status: StepStatus.active,
     );
   } else {
     main = ShiftStep(
-      title: 'Main shift',
-      detail: 'Ends at ${Fmt.time(window.end)}',
+      title: tr('Main shift'),
+      detail: tr('Ends at {time}', {'time': Fmt.time(window.end)}),
       status: StepStatus.upcoming,
     );
   }
@@ -182,34 +222,39 @@ List<ShiftStep> stepsFor(Shift s, DateTime now) {
   final ShiftStep ot;
   if (s.otEndTime != null) {
     ot = ShiftStep(
-      title: 'OT done',
-      detail: '${Fmt.hours(s.otHours)} hrs logged',
+      title: tr('OT done'),
+      detail: tr('{hours} hrs logged', {'hours': Fmt.hours(s.otHours)}),
       status: StepStatus.done,
     );
   } else if (s.otStartTime != null) {
     ot = ShiftStep(
-      title: 'OT in progress',
-      detail: 'Started at ${Fmt.time(s.otStartTime!)}',
+      title: tr('OT in progress'),
+      detail: tr('Started at {time}', {'time': Fmt.time(s.otStartTime!)}),
       status: StepStatus.active,
     );
   } else if (s.hasAutoOt) {
     ot = ShiftStep(
-      title: 'OT starts automatically',
-      detail:
-          'at ${Fmt.time(window.end)} · ${Fmt.hours(s.type.spanHours - s.standardHours)} hrs, no sign-out needed',
+      title: tr('OT starts automatically'),
+      detail: tr('at {time} · {hours} hrs, no sign-out needed', {
+        'time': Fmt.time(window.end),
+        'hours': Fmt.hours(s.type.spanHours - s.standardHours),
+      }),
       status: StepStatus.upcoming,
     );
   } else if (s.otHours > 0) {
     final otStart = window.end.add(const Duration(minutes: 30));
     ot = ShiftStep(
-      title: 'OT shift starting',
-      detail: 'at ${Fmt.time(otStart)} · ${Fmt.hours(s.otHours)} hrs',
+      title: tr('OT shift starting'),
+      detail: tr('at {time} · {hours} hrs', {
+        'time': Fmt.time(otStart),
+        'hours': Fmt.hours(s.otHours),
+      }),
       status: StepStatus.upcoming,
     );
   } else {
-    ot = const ShiftStep(
-      title: 'OT (optional)',
-      detail: 'Switch to OT when you sign out',
+    ot = ShiftStep(
+      title: tr('OT (optional)'),
+      detail: tr('Switch to OT when you sign out'),
       status: StepStatus.upcoming,
     );
   }

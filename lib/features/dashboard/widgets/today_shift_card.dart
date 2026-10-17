@@ -21,10 +21,14 @@ class TodayShiftCard extends StatelessWidget {
     required this.onOpen,
     required this.onAdd,
     this.clock,
+    this.sleepDay = false,
   });
 
   final Shift? shift;
   final DateTime now;
+
+  /// Yesterday's night / 24-hour duty ended this morning and today has no duty.
+  final bool sleepDay;
 
   /// Drives the live duty timer; defaults to a fixed [now].
   final DateTime Function()? clock;
@@ -35,9 +39,14 @@ class TodayShiftCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = shift;
-    if (s == null) return _EmptyToday(onAdd: onAdd);
-    if (s.isLeave || s.type == ShiftType.off && s.otHours == 0) {
-      return _RestDay(shift: s, onOpen: () => onOpen(s));
+    // After a night or 24-hour duty that ended this morning, today is for sleep.
+    if (s == null) {
+      return sleepDay
+          ? _RestDay(shift: null, sleepDay: true, onOpen: onAdd)
+          : _EmptyToday(onAdd: onAdd);
+    }
+    if (s.isLeave || s.isSwapped || s.type == ShiftType.off && s.otHours == 0) {
+      return _RestDay(shift: s, sleepDay: sleepDay, onOpen: () => onOpen(s));
     }
     if (s.onDuty) {
       return ActiveDutyCard(
@@ -58,7 +67,7 @@ class TodayShiftCard extends StatelessWidget {
           final stacked = constraints.maxWidth < 330;
           final tile = _ShiftTile(shift: s, compact: stacked);
           final steps = _StepList(
-            steps: stepsFor(s, now),
+            steps: stepsFor(s, now, context.tr),
             next: s.nextAction,
             onNext: s.nextAction == null
                 ? null
@@ -122,23 +131,63 @@ class _EmptyToday extends StatelessWidget {
 }
 
 class _RestDay extends StatelessWidget {
-  const _RestDay({required this.shift, required this.onOpen});
+  const _RestDay({
+    required this.shift,
+    required this.onOpen,
+    this.sleepDay = false,
+  });
 
-  final Shift shift;
+  /// Null on a sleep day with nothing rostered.
+  final Shift? shift;
+  final bool sleepDay;
   final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final leave = shift.isLeave;
+    final s = shift;
+    final leave = s?.isLeave ?? false;
+    final swapped = s?.isSwapped ?? false;
+    final sleep = sleepDay && !leave && !swapped;
+    final (title, subtitle, icon) = swapped
+        ? (
+            context.tr('Duty swapped'),
+            context.tr('Given to {name}', {'name': s!.swappedWith ?? '—'}),
+            Icons.swap_horiz_rounded,
+          )
+        : leave
+        ? (
+            context.tr(s!.leaveType.label),
+            context.tr('Rest well, nothing to check in today'),
+            Icons.beach_access_rounded,
+          )
+        : sleep
+        ? (
+            context.tr('Sleep day'),
+            context.tr('Rest after your night duty. No duty today.'),
+            Icons.bedtime_rounded,
+          )
+        : (
+            context.tr('Day off'),
+            context.tr('Enjoy your rest day'),
+            Icons.weekend_rounded,
+          );
     return PastelCard(
-      color: leave ? AppColors.peach : AppColors.mint,
+      color: leave || swapped
+          ? AppColors.peach
+          : sleep
+          ? AppColors.sky
+          : AppColors.mint,
       onTap: onOpen,
       child: Row(
         children: [
           IconBadge(
-            icon: leave ? Icons.beach_access_rounded : Icons.weekend_rounded,
-            iconColor: leave ? AppColors.peachDeep : AppColors.mintDeep,
+            icon: icon,
+            iconColor: leave || swapped
+                ? AppColors.peachDeep
+                : sleep
+                ? AppColors.skyDeep
+                : AppColors.mintDeep,
             size: 48,
           ),
           const SizedBox(width: 14),
@@ -146,18 +195,8 @@ class _RestDay extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  leave
-                      ? context.tr(shift.leaveType.label)
-                      : context.tr('Day off'),
-                  style: text.titleSmall,
-                ),
-                Text(
-                  leave
-                      ? context.tr('Rest well, nothing to check in today')
-                      : context.tr('Enjoy your rest day'),
-                  style: text.bodySmall,
-                ),
+                Text(title, style: text.titleSmall),
+                Text(subtitle, style: text.bodySmall),
               ],
             ),
           ),

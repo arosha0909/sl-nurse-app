@@ -42,7 +42,7 @@ class SalaryHeroCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  "This Month's\nPredicted Salary",
+                  context.tr("This Month's\nPredicted Salary"),
                   style: text.bodyMedium?.copyWith(
                     color: AppColors.textPrimary.withValues(alpha: 0.7),
                     height: 1.3,

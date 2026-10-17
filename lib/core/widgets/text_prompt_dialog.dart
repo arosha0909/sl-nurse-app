@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
+import '../../core/i18n/i18n.dart';
 
 /// Single-field input dialog. It owns its controller, so the controller outlives
 /// the dialog's closing animation (disposing it right after `showDialog` returns
@@ -84,9 +85,12 @@ class _TextPromptDialogState extends State<TextPromptDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(context.tr('Cancel')),
         ),
-        FilledButton(onPressed: _submit, child: Text(widget.confirmLabel)),
+        FilledButton(
+          onPressed: _submit,
+          child: Text(context.tr(widget.confirmLabel)),
+        ),
       ],
     );
   }

@@ -9,6 +9,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/pastel_card.dart';
 import '../../data/models.dart';
 import 'sl_hospitals.dart';
+import '../../core/i18n/i18n.dart';
 
 /// Progressive profiling: optional details are asked for only when the nurse first uses
 /// the feature that needs them, and every prompt can be skipped. None of these block the
@@ -153,20 +154,24 @@ class _WorkplaceSheetState extends State<WorkplaceSheet> {
                   const Spacer(),
                   TextButton(
                     onPressed: _saving ? null : () => _finish(skip: true),
-                    child: const Text('Skip'),
+                    child: Text(context.tr('Skip')),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
-                step2 ? 'Which ward?' : 'Select your primary hospital',
+                step2
+                    ? context.tr('Which ward?')
+                    : context.tr('Select your primary hospital'),
                 style: text.titleLarge,
               ),
               const SizedBox(height: 4),
               Text(
                 step2
-                    ? 'Optional. Helps match your roster rows.'
-                    : 'We use it to label your roster. You can change it any time.',
+                    ? context.tr('Optional. Helps match your roster rows.')
+                    : context.tr(
+                        'We use it to label your roster. You can change it any time.',
+                      ),
                 style: text.bodyMedium,
               ),
               const SizedBox(height: 16),
@@ -175,9 +180,9 @@ class _WorkplaceSheetState extends State<WorkplaceSheet> {
                   controller: _search,
                   autofocus: false,
                   textInputAction: TextInputAction.done,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     prefixIcon: Icon(Icons.search_rounded),
-                    hintText: 'Search hospitals',
+                    hintText: context.tr('Search hospitals'),
                   ),
                   onChanged: (_) => setState(() {}),
                   onSubmitted: (v) {
@@ -216,7 +221,7 @@ class _WorkplaceSheetState extends State<WorkplaceSheet> {
                       color: AppColors.lavenderDeep,
                     ),
                     title: Text(
-                      'Use "${_search.text.trim()}"',
+                      context.tr('Use "{name}"', {'name': _search.text.trim()}),
                       style: text.bodyMedium?.copyWith(
                         color: AppColors.textPrimary,
                       ),
@@ -278,8 +283,8 @@ class _WorkplaceSheetState extends State<WorkplaceSheet> {
                 TextField(
                   controller: _wardNo,
                   keyboardType: TextInputType.text,
-                  decoration: const InputDecoration(
-                    labelText: 'Ward number (optional)',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Ward number (optional)'),
                     prefixIcon: Icon(Icons.tag_rounded),
                   ),
                   onChanged: (_) => setState(() {}),
@@ -295,7 +300,7 @@ class _WorkplaceSheetState extends State<WorkplaceSheet> {
                             color: Colors.white,
                           ),
                         )
-                      : const Text('Save & continue'),
+                      : Text(context.tr('Save & continue')),
                 ),
               ],
             ],
@@ -384,13 +389,16 @@ class _SalarySetupDialogState extends State<SalarySetupDialog> {
               },
       ),
       success: skip
-          ? 'Using a typical salary estimate for now'
-          : 'Salary saved. Predictions are now exact',
+          ? context.tr('Using a typical salary estimate for now')
+          : context.tr('Salary saved. Predictions are now exact'),
     );
     if (!mounted) return;
     setState(() => _saving = false);
     if (ok) Navigator.pop(context);
   }
+
+  static String? _trOrNull(BuildContext context, String? message) =>
+      message == null ? null : context.tr(message);
 
   static String? _amount(String? v, {bool optional = false}) {
     final s = (v ?? '').trim();
@@ -426,10 +434,15 @@ class _SalarySetupDialogState extends State<SalarySetupDialog> {
                 ),
               ),
               const SizedBox(height: 14),
-              Text('Make your salary exact', style: text.titleLarge),
+              Text(
+                context.tr('Make your salary exact'),
+                style: text.titleLarge,
+              ),
               const SizedBox(height: 6),
               Text(
-                'To calculate your exact salary & OT predictions, please enter your Base Salary & Hourly OT Rate.',
+                context.tr(
+                  'To calculate your exact salary & OT predictions, please enter your Base Salary & Hourly OT Rate.',
+                ),
                 style: text.bodyMedium?.copyWith(
                   color: AppColors.textPrimary.withValues(alpha: 0.75),
                 ),
@@ -442,11 +455,11 @@ class _SalarySetupDialogState extends State<SalarySetupDialog> {
                   decimal: true,
                 ),
                 inputFormatters: numeric,
-                decoration: const InputDecoration(
-                  labelText: 'Base salary (LKR / month)',
+                decoration: InputDecoration(
+                  labelText: context.tr('Base salary (LKR / month)'),
                   prefixIcon: Icon(Icons.account_balance_wallet_outlined),
                 ),
-                validator: _amount,
+                validator: (v) => _trOrNull(context, _amount(v)),
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -455,12 +468,15 @@ class _SalarySetupDialogState extends State<SalarySetupDialog> {
                   decimal: true,
                 ),
                 inputFormatters: numeric,
-                decoration: const InputDecoration(
-                  labelText: 'OT rate (LKR / hour)',
+                decoration: InputDecoration(
+                  labelText: context.tr('OT rate (LKR / hour)'),
                   prefixIcon: Icon(Icons.more_time_rounded),
-                  helperText: 'Optional. Leave empty to use basic ÷ 240 × 1.5',
+                  helperText: context.tr(
+                    'Optional. Leave empty to use basic ÷ 240 × 1.5',
+                  ),
                 ),
-                validator: (v) => _amount(v, optional: true),
+                validator: (v) =>
+                    _trOrNull(context, _amount(v, optional: true)),
                 onFieldSubmitted: (_) => _save(skip: false),
               ),
               const SizedBox(height: 20),
@@ -474,12 +490,12 @@ class _SalarySetupDialogState extends State<SalarySetupDialog> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text('Save & predict'),
+                    : Text(context.tr('Save & predict')),
               ),
               const SizedBox(height: 4),
               TextButton(
                 onPressed: _saving ? null : () => _save(skip: true),
-                child: const Text('Skip for now (Use Default Estimate)'),
+                child: Text(context.tr('Skip for now (Use Default Estimate)')),
               ),
             ],
           ),
@@ -512,7 +528,9 @@ class _RemindersSheetState extends State<RemindersSheet> {
     context.showMessage(
       granted
           ? 'Reminders on: we\'ll nudge you ${reminderLeadText()} before each shift'
-          : 'Notifications are blocked. You can turn them on later in Profile.',
+          : context.tr(
+              'Notifications are blocked. You can turn them on later in Profile.',
+            ),
     );
   }
 
@@ -536,7 +554,7 @@ class _RemindersSheetState extends State<RemindersSheet> {
             ),
             const SizedBox(height: 14),
             Text(
-              'Never miss a shift',
+              context.tr('Never miss a shift'),
               textAlign: TextAlign.center,
               style: text.titleLarge,
             ),
@@ -550,11 +568,11 @@ class _RemindersSheetState extends State<RemindersSheet> {
             FilledButton.icon(
               onPressed: _busy ? null : _enable,
               icon: const Icon(Icons.notifications_rounded, size: 18),
-              label: const Text('Turn on reminders'),
+              label: Text(context.tr('Turn on reminders')),
             ),
             TextButton(
               onPressed: _busy ? null : () => Navigator.pop(context),
-              child: const Text('Not now'),
+              child: Text(context.tr('Not now')),
             ),
           ],
         ),
@@ -595,7 +613,7 @@ class EstimateChip extends StatelessWidget {
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
-                  'Estimate · add your salary',
+                  context.tr('Estimate · add your salary'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(

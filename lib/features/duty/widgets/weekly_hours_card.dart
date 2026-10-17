@@ -5,6 +5,7 @@ import '../../../core/format.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/pastel_card.dart';
 import '../duty_vm.dart';
+import '../../../core/i18n/i18n.dart';
 
 /// Weekly comparison of main shift hours vs OT hours (Mon → Sun).
 class WeeklyHoursCard extends StatelessWidget {
@@ -44,7 +45,10 @@ class WeeklyHoursCard extends StatelessWidget {
                       style: text.titleLarge,
                     ),
                     Text(
-                      'Week of ${Fmt.weekday(week.first.date)} ${week.first.date.day}',
+                      context.tr('Week of {day}', {
+                        'day':
+                            '${Fmt.weekday(week.first.date)} ${week.first.date.day}',
+                      }),
                       style: text.bodySmall,
                     ),
                   ],
@@ -55,7 +59,9 @@ class WeeklyHoursCard extends StatelessWidget {
                 children: [
                   _Legend(
                     color: AppColors.mintDeep.withValues(alpha: 0.55),
-                    label: 'Main ${Fmt.hours(mainTotal)}h',
+                    label: context.tr('Main {hours}h', {
+                      'hours': Fmt.hours(mainTotal),
+                    }),
                   ),
                   const SizedBox(height: 4),
                   _Legend(

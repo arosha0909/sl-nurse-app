@@ -8,6 +8,10 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/floating_nav_bar.dart';
 import '../analytics/analytics_screen.dart';
 import '../dashboard/dashboard_screen.dart';
+import '../guide/app_guide.dart';
+import '../notifications/notifications_screen.dart';
+import '../../core/notices.dart';
+import '../../core/reminders.dart';
 import '../duty/duty_details_screen.dart';
 import '../onboarding/progressive_prompts.dart';
 import '../profile/profile_screen.dart';
@@ -56,6 +60,60 @@ class _AppShellState extends State<AppShell> {
   bool _rescheduling = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final scope = AppScope.of(context);
+      // Tapping a phone notification opens the screen it is about.
+      _reminders = scope.reminders..onOpen = _openRoute;
+      final launched = await scope.reminders.takeLaunchRoute();
+      if (!mounted) return;
+      if (launched != null) {
+        _openRoute(launched);
+      } else if (!scope.prefs.guideSeen) {
+        // First sign-in on this device: walk the nurse through the app, in her language.
+        _openGuide();
+      }
+    });
+  }
+
+  ReminderService? _reminders;
+
+  /// Where a notification (phone or in-app) takes the nurse.
+  void _openRoute(String route) {
+    switch (route) {
+      case NoticeRoute.pay:
+        _go(3);
+      case NoticeRoute.inbox:
+        _openNotifications();
+      default:
+        _go(0);
+    }
+  }
+
+  Future<void> _openNotifications() async {
+    final route = await NotificationsScreen.open(context);
+    if (route != null && mounted) _openRoute(route);
+  }
+
+  /// Shows the guide, then takes the nurse where she chose to start.
+  Future<void> _openGuide() async {
+    final next = await AppGuide.open(context);
+    if (!mounted) return;
+    switch (next) {
+      case GuideNext.scanRoster:
+        await RosterScanScreen.open(context);
+      case GuideNext.typeRoster:
+        await ManualRosterScreen.open(context);
+      case GuideNext.setPay:
+        _go(3);
+      case GuideNext.home || null:
+        _go(0);
+    }
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final sync = AppScope.of(context).sync;
@@ -69,6 +127,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void dispose() {
     _sync?.removeListener(_rescheduleReminders);
+    _reminders?.onOpen = null;
     super.dispose();
   }
 
@@ -102,6 +161,7 @@ class _AppShellState extends State<AppShell> {
         onOpenRoster: () => _go(1),
         onOpenSalary: () => _go(2),
         onOpenProfile: () => _go(3),
+        onOpenNotifications: _openNotifications,
       ),
       DutyDetailsScreen(onBack: () => _go(0)),
       const AnalyticsScreen(),
@@ -121,6 +181,8 @@ class _AppShellState extends State<AppShell> {
           // The shell's context outlives the drawer, which is gone once it closes.
           onScan: () => RosterScanScreen.open(context),
           onManual: () => ManualRosterScreen.open(context),
+          onGuide: _openGuide,
+          onNotifications: _openNotifications,
         ),
         body: BackgroundWaves(
           child: Stack(
@@ -169,12 +231,16 @@ class _AppDrawer extends StatelessWidget {
     required this.onTab,
     required this.onScan,
     required this.onManual,
+    required this.onGuide,
+    required this.onNotifications,
   });
 
   final int current;
   final ValueChanged<int> onTab;
   final VoidCallback onScan;
   final VoidCallback onManual;
+  final VoidCallback onGuide;
+  final VoidCallback onNotifications;
 
   @override
   Widget build(BuildContext context) {
@@ -267,18 +333,44 @@ class _AppDrawer extends StatelessWidget {
               () => onTab(3),
               selected: current == 3,
             ),
+            ListenableBuilder(
+              listenable: scope.inbox,
+              builder: (context, _) {
+                final unread = scope.inbox.unread(scope.today());
+                return item(
+                  Icons.notifications_none_rounded,
+                  unread > 0
+                      ? context.tr('Notifications ({n})', {'n': unread})
+                      : context.tr('Notifications'),
+                  onNotifications,
+                );
+              },
+            ),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
               child: Divider(),
             ),
-            item(Icons.document_scanner_outlined, 'Scan roster', onScan),
+            item(
+              Icons.document_scanner_outlined,
+              context.tr('Scan roster'),
+              onScan,
+            ),
             item(
               Icons.edit_calendar_outlined,
               context.tr('Enter roster manually'),
               onManual,
             ),
+            item(
+              Icons.menu_book_rounded,
+              context.tr('How to use the app'),
+              onGuide,
+            ),
             const Spacer(),
-            item(Icons.logout_rounded, 'Sign out', () => scope.auth.logout()),
+            item(
+              Icons.logout_rounded,
+              context.tr('Sign out'),
+              () => scope.auth.logout(),
+            ),
             const SizedBox(height: 12),
           ],
         ),

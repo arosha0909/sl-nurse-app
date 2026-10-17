@@ -24,11 +24,13 @@ class DashboardScreen extends StatelessWidget {
     required this.onOpenRoster,
     required this.onOpenSalary,
     required this.onOpenProfile,
+    this.onOpenNotifications,
   });
 
   final VoidCallback onOpenRoster;
   final VoidCallback onOpenSalary;
   final VoidCallback onOpenProfile;
+  final VoidCallback? onOpenNotifications;
 
   Future<DashboardData> _load(AppScope scope) async {
     final now = scope.today();
@@ -40,7 +42,13 @@ class DashboardScreen extends StatelessWidget {
     final results = await Future.wait<Object>([
       repo.me(),
       repo.forecast(month: now.month, year: now.year),
-      repo.shifts(from: monthStart, to: monthEnd),
+      // From yesterday at the latest, so a night duty ending this morning is known.
+      repo.shifts(
+        from: monthStart.isBefore(now) && now.day > 1
+            ? monthStart
+            : now.subtract(const Duration(days: 1)),
+        to: monthEnd,
+      ),
       repo.shifts(from: now, to: now.add(const Duration(days: 14))),
     ]);
     return DashboardData.build(
@@ -78,6 +86,7 @@ class DashboardScreen extends StatelessWidget {
                     user: data.user,
                     onMenu: () => Scaffold.of(context).openDrawer(),
                     onAvatar: onOpenProfile,
+                    onNotifications: onOpenNotifications,
                     isNewUser: scope.auth.isNewUser,
                   ),
                   const SizedBox(height: 22),
@@ -90,7 +99,7 @@ class DashboardScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.sectionGap),
                   SectionHeader(
-                    title: "Today's Shift",
+                    title: context.tr("Today's Shift"),
                     actionIcon: Icons.edit_outlined,
                     actionLabel: data.today == null
                         ? context.tr('Add shift')
@@ -104,6 +113,7 @@ class DashboardScreen extends StatelessWidget {
                     shift: data.today,
                     now: now,
                     clock: scope.today,
+                    sleepDay: data.sleepDay,
                     onAction: (s, a) => runDutyAction(context, s, a),
                     onOpen: (s) => showShiftActions(context, s),
                     onAdd: () => showAddShift(context, dayOf(now)),

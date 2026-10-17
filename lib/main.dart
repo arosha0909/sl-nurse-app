@@ -7,8 +7,10 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/app_scope.dart';
 import 'core/app_settings.dart';
 import 'core/i18n/i18n.dart';
+import 'core/notices.dart';
 import 'core/config.dart';
 import 'core/device_prefs.dart';
+import 'core/format.dart';
 import 'core/network/api_client.dart';
 import 'core/network/token_store.dart';
 import 'core/reminders.dart';
@@ -85,7 +87,10 @@ class NurseCompanionApp extends StatefulWidget {
     DevicePrefs? prefs,
     this.initialTab = 0,
     this.today,
-  }) : prefs = prefs ?? MemoryDevicePrefs();
+  }) : prefs =
+           prefs ??
+           // No storage given (widget tests): skip the first-run guide.
+           MemoryDevicePrefs(guideSeen: true);
 
   final NurseRepository repository;
   final AuthController auth;
@@ -105,6 +110,7 @@ class _NurseCompanionAppState extends State<NurseCompanionApp> {
   final _sync = DataSync();
   final _navigator = GlobalKey<NavigatorState>();
   late final _settings = AppSettings(widget.prefs);
+  late final _inbox = NoticeInbox(widget.prefs);
 
   @override
   void initState() {
@@ -116,6 +122,7 @@ class _NurseCompanionAppState extends State<NurseCompanionApp> {
   void dispose() {
     _sync.dispose();
     _settings.dispose();
+    _inbox.dispose();
     super.dispose();
   }
 
@@ -130,33 +137,38 @@ class _NurseCompanionAppState extends State<NurseCompanionApp> {
       reminders: widget.reminders,
       prefs: widget.prefs,
       settings: _settings,
+      inbox: _inbox,
       // Language and clock changes apply to every screen at once.
       child: ListenableBuilder(
         listenable: _settings,
-        builder: (context, _) => MaterialApp(
-          title: 'Nurse Companion',
-          debugShowCheckedModeBanner: false,
-          navigatorKey: _navigator,
-          theme: AppTheme.light(),
-          locale: _settings.language.locale,
-          supportedLocales: [for (final l in AppLanguage.values) l.locale],
-          localizationsDelegates: GlobalMaterialLocalizations.delegates,
-          builder: (context, child) => AppStrings(
-            language: _settings.language,
-            child: MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(alwaysUse24HourFormat: _settings.use24h),
-              child: child!,
+        builder: (context, _) {
+          // Dates and times follow the chosen language and clock everywhere.
+          Fmt.translateWord = (w) => translate(_settings.language, w);
+          return MaterialApp(
+            title: 'Nurse Companion',
+            debugShowCheckedModeBanner: false,
+            navigatorKey: _navigator,
+            theme: AppTheme.light(),
+            locale: _settings.language.locale,
+            supportedLocales: [for (final l in AppLanguage.values) l.locale],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            builder: (context, child) => AppStrings(
+              language: _settings.language,
+              child: MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(alwaysUse24HourFormat: _settings.use24h),
+                child: child!,
+              ),
             ),
-          ),
-          home: AuthGate(
-            auth: widget.auth,
-            prefs: widget.prefs,
-            navigator: _navigator,
-            initialTab: widget.initialTab,
-          ),
-        ),
+            home: AuthGate(
+              auth: widget.auth,
+              prefs: widget.prefs,
+              navigator: _navigator,
+              initialTab: widget.initialTab,
+            ),
+          );
+        },
       ),
     );
   }
@@ -208,6 +220,13 @@ class _AuthGateState extends State<AuthGate> {
       // From now on this device skips the welcome screen and pre-fills sign-in.
       widget.prefs.markWelcomeSeen();
       widget.prefs.rememberLoginId(widget.auth.user?.contact ?? '');
+      // Offer the same way first next time (Google → "You used Google last time").
+      final provider = widget.auth.lastProvider;
+      if (provider != null) {
+        widget.prefs.write('signInMethod', provider.api);
+      } else if (widget.auth.usedPassword) {
+        widget.prefs.write('signInMethod', 'password');
+      }
     }
     setState(() {});
   }

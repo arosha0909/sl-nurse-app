@@ -12,6 +12,7 @@ import '../../data/models.dart';
 import '../onboarding/progressive_prompts.dart';
 import 'manual_roster_help.dart';
 import 'roster_widgets.dart';
+import '../../core/i18n/i18n.dart';
 
 /// Type a month's roster by hand: one code per day, with a rota quick-fill.
 class ManualRosterScreen extends StatefulWidget {
@@ -63,10 +64,10 @@ class _ManualRosterScreenState extends State<ManualRosterScreen> {
                   child: Column(
                     children: [
                       PageHeader(
-                        title: 'Manual Roster',
+                        title: context.tr('Manual Roster'),
                         trailing: CircleIconButton(
                           icon: Icons.help_outline_rounded,
-                          tooltip: 'How to add your roster',
+                          tooltip: context.tr('How to add your roster'),
                           onPressed: () => showManualRosterHelp(context),
                         ),
                       ),
@@ -158,7 +159,7 @@ class _MonthEditorState extends State<_MonthEditor> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setLocal) => AlertDialog(
-          title: const Text('Fill with rota'),
+          title: Text(context.tr('Fill with rota')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,7 +170,7 @@ class _MonthEditorState extends State<_MonthEditor> {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  const Text('Start on day'),
+                  Text(context.tr('Start on day')),
                   const Spacer(),
                   IconButton(
                     onPressed: start > 1 ? () => setLocal(() => start--) : null,
@@ -192,11 +193,11 @@ class _MonthEditorState extends State<_MonthEditor> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text(context.tr('Cancel')),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, start),
-              child: const Text('Fill'),
+              child: Text(context.tr('Fill')),
             ),
           ],
         ),
@@ -273,14 +274,14 @@ class _MonthEditorState extends State<_MonthEditor> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Tap a day to set its shift',
+                      context.tr('Tap a day to set its shift'),
                       style: text.bodySmall,
                     ),
                   ),
                   TextButton.icon(
                     onPressed: _fillRota,
                     icon: const Icon(Icons.auto_fix_high_rounded, size: 18),
-                    label: const Text('Fill rota'),
+                    label: Text(context.tr('Fill rota')),
                   ),
                 ],
               ),
@@ -329,7 +330,11 @@ class _MonthEditorState extends State<_MonthEditor> {
                         color: Colors.white,
                       ),
                     )
-                  : Text(changed == 0 ? 'No changes' : 'Save $changed day(s)'),
+                  : Text(
+                      changed == 0
+                          ? context.tr('No changes')
+                          : 'Save $changed day(s)',
+                    ),
             ),
           ),
         ),
@@ -377,8 +382,10 @@ class _DayRow extends StatelessWidget {
           Expanded(
             child: Text(
               locked
-                  ? 'Double shift · edit from Duty details'
-                  : (code?.label ?? 'Not set'),
+                  ? context.tr('Double shift · edit from Duty details')
+                  : (code == null
+                        ? context.tr('Not set')
+                        : context.tr(code!.label)),
               style: text.bodyMedium?.copyWith(
                 color: code == null
                     ? AppColors.textSecondary
