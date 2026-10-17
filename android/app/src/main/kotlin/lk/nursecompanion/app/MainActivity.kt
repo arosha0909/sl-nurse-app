@@ -1,4 +1,4 @@
-package lk.nursecompanion.nurse_companion
+package lk.nursecompanion.app
 
 import io.flutter.embedding.android.FlutterActivity
 

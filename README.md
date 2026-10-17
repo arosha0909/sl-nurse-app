@@ -39,6 +39,16 @@ For Flutter web against a local API, add the web origin to the API's `CORS_ORIGI
 
 On web, `?tab=0..3` opens a tab directly.
 
+## Release (Google Play)
+
+Package name: `lk.nursecompanion.app`. Release builds are signed with the upload key in `android/upload-keystore.jks`, configured by `android/key.properties`. Both files are gitignored. **Back them up somewhere safe**: Play only accepts updates signed with this key. A lost key can be reset through Play support, but that takes days.
+
+```powershell
+.\build_release.ps1 -ApiUrl https://api.example.lk   # server root, without /api/v1
+```
+
+Before each upload, bump `version:` in `pubspec.yaml`. Play rejects a build number (the part after the `+`) it has already seen.
+
 ## Tests
 
 ```bash
